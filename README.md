@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Zippy Planet
 
-## Getting Started
+Catalog physical books fast: photograph shelves → AI extracts spines → barcode-scan the rest → export a LibraryThing-compatible CSV.
 
-First, run the development server:
+Single-user PWA. Next.js 16 App Router on Vercel, Neon Postgres + Drizzle, Claude vision.
+
+## Setup
+
+### 1. Provision Neon Postgres
+
+- Easiest: Vercel dashboard → Storage → add a Neon database. Paste the `DATABASE_URL` it gives you.
+- Or sign up at [neon.tech](https://neon.tech) (free tier is plenty) and copy the pooled connection string.
+
+### 2. Create `.env.local`
+
+```bash
+cp .env.local.example .env.local
+```
+
+Fill in:
+- `DATABASE_URL` — from step 1
+- `APP_PASSCODE` — any long random string. This is the single shared password to enter the app.
+
+You can leave `ISBNDB_API_KEY`, `GOOGLE_BOOKS_API_KEY`, and `ANTHROPIC_API_KEY` empty until later phases.
+
+### 3. Push the schema
+
+```bash
+npm run db:push
+```
+
+This creates the `batches` and `books` tables in your Neon database.
+
+### 4. Run the app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open <http://localhost:3000>, enter your passcode, create a batch.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Phase status
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Phase 1 — Skeleton:** ✅ Next.js scaffold, Neon + Drizzle, passcode auth, batch CRUD UI.
+- **Phase 2 — Lookup library:** ISBN normalization + ISBNdb / Open Library / Google Books / LibraryThing.
+- **Phase 3 — Barcode flow:** `@zxing/browser` scanner.
+- **Phase 4 — Vision flow:** Claude vision → per-book lookup → review queue.
+- **Phase 5 — Review UI:** confirm / edit / reject per book.
+- **Phase 6 — CSV export:** LibraryThing import format.
+- **Phase 7 — PWA polish:** manifest, icons, offline shell, daily cost cap.
 
-## Learn More
+See `~/.claude/plans/i-want-to-make-zippy-planet.md` for the full plan.
 
-To learn more about Next.js, take a look at the following resources:
+## Useful commands
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev          # dev server
+npm run build        # production build
+npm run typecheck    # tsc --noEmit
+npm run db:push      # sync schema to DB (no migration files)
+npm run db:generate  # generate SQL migration from schema diff
+npm run db:studio    # browse the DB in a local GUI
+```
