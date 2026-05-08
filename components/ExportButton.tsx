@@ -10,7 +10,7 @@ type Props = {
   count: number;
 };
 
-const LT_IMPORT_URL = "https://www.librarything.com/import.php";
+const LT_IMPORT_URL = "https://www.librarything.com/import";
 
 export default function ExportButton({ batchId, count }: Props) {
   const router = useRouter();

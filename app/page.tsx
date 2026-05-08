@@ -170,7 +170,7 @@ export default async function HomePage() {
                   <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
                     Welcome back
                   </h1>
-                  <p className="text-muted-foreground max-w-md text-sm">
+                  <p className="text-muted-foreground max-w-md text-balance text-sm">
                     Photograph shelves, scan barcodes, then export everything to
                     LibraryThing in one tidy CSV.
                   </p>
