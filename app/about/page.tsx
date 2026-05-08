@@ -1,4 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
+import BrandMark from "@/components/BrandMark";
 import TopBar from "@/components/TopBar";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -19,19 +21,42 @@ export default function AboutPage() {
           ← Home
         </Link>
 
-        <header className="space-y-2">
-          <p className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
-            About
-          </p>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">
-            Carnegie
-          </h1>
-          <p className="text-muted-foreground max-w-prose text-balance text-sm">
-            A personal-library cataloger. Photograph your shelves, scan
-            barcodes, or type ISBNs — Carnegie reads the spines and exports a
-            clean LibraryThing CSV.
-          </p>
-        </header>
+        {/* Bookplate plaque hero — tartan binding with a cream nameplate
+            affixed on top. The BrandMark + wordmark sit inside the plate,
+            with an "Ex Libris" caption that ties back to the login screen. */}
+        <section className="relative overflow-hidden rounded-2xl border shadow-sm">
+          <div className="relative h-36 w-full sm:h-40">
+            <Image
+              src="/tartanImagePrototype.jpg"
+              alt=""
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 672px"
+              className="object-cover"
+            />
+            <div className="absolute inset-0 flex items-center justify-center px-6">
+              <div className="bg-card/95 ring-primary/30 flex items-center gap-3 rounded-md px-5 py-3 shadow-md ring-1 backdrop-blur-sm">
+                <span className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-md">
+                  <BrandMark className="size-7" />
+                </span>
+                <div className="flex flex-col">
+                  <span className="text-muted-foreground text-[10px] font-medium uppercase tracking-[0.25em]">
+                    Ex Libris
+                  </span>
+                  <span className="font-heading text-2xl font-semibold leading-none tracking-tight">
+                    Carnegie
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <p className="text-muted-foreground max-w-prose text-balance text-sm">
+          A personal-library cataloger. Photograph your shelves, scan
+          barcodes, or type ISBNs — Carnegie reads the spines and exports a
+          clean LibraryThing CSV.
+        </p>
 
         <Card>
           <CardContent className="space-y-4 p-5 text-sm">
@@ -71,8 +96,7 @@ export default function AboutPage() {
               </h2>
               <p className="text-muted-foreground">
                 After Andrew Carnegie, who funded more than 2,500 free public
-                libraries. The tartan on the login screen is the Modern
-                Carnegie sett.
+                libraries. The tartan above is the Modern Carnegie sett.
               </p>
             </section>
           </CardContent>
