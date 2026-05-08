@@ -10,8 +10,11 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#0a0a0a",
-    theme_color: "#0a0a0a",
+    // Splash background — picked from the dark stripe of the Modern Carnegie
+    // tartan so the launch sequence reads as one continuous brand surface
+    // (navy splash → tartan-backed icon at center → app).
+    background_color: "#1a2030",
+    theme_color: "#1a2030",
     icons: [
       {
         src: "/icon.svg",
