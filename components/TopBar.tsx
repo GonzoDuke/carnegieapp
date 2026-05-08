@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { Info, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
 import SearchBar from "@/components/SearchBar";
@@ -56,6 +56,15 @@ export default function TopBar() {
         <SearchBar />
 
         <nav className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="About Carnegie"
+            className="text-muted-foreground"
+            render={<Link href="/about" />}
+          >
+            <Info className="size-4" />
+          </Button>
           <ThemeToggle />
           <form method="POST" action="/api/logout">
             <Button
