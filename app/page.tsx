@@ -76,14 +76,15 @@ export default async function HomePage() {
 
       <main className="mx-auto w-full max-w-5xl space-y-10 px-4 py-8 sm:py-10">
         {/* Hero */}
-        <section className="from-primary/10 via-card to-card relative overflow-hidden rounded-2xl border bg-gradient-to-br shadow-sm">
-          <div className="relative flex flex-col gap-6 p-6 pb-9 sm:flex-row sm:items-end sm:justify-between sm:p-8 sm:pb-11">
+        <section className="from-primary/8 via-background to-background relative overflow-hidden rounded-2xl border bg-gradient-to-br p-6 sm:p-8">
+          <div className="from-primary/15 pointer-events-none absolute -right-20 -top-20 size-64 rounded-full bg-gradient-to-br to-transparent blur-3xl" />
+          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="space-y-2">
-              <div className="text-accent-foreground/70 inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.25em]">
-                <Sparkles className="text-accent size-3" />
-                Ex Libris &middot; Your library
+              <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
+                <Sparkles className="size-3" />
+                Your library
               </div>
-              <h1 className="font-heading text-4xl font-semibold tracking-tight sm:text-5xl">
+              <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
                 Welcome back
               </h1>
               <p className="text-muted-foreground max-w-md text-sm">
@@ -93,17 +94,6 @@ export default async function HomePage() {
             </div>
             <CreateBatchDialog />
           </div>
-          {/* Tartan ribbon along the bottom edge — quiet at 6px, but a
-              clear textile signature on the page-level surface. */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 h-1.5"
-            style={{
-              backgroundImage: "url(/tartan.svg)",
-              backgroundSize: "96px 96px",
-              backgroundRepeat: "repeat-x",
-            }}
-          />
         </section>
 
         {/* Stats */}
@@ -209,12 +199,12 @@ function StatTile({
   value: number;
 }) {
   return (
-    <div className="bg-card hover:border-accent/40 rounded-xl border p-4 transition-colors">
+    <div className="bg-card hover:border-primary/30 rounded-xl border p-4 transition-colors">
       <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider">
-        <span className="text-accent">{icon}</span>
+        {icon}
         {label}
       </div>
-      <div className="font-heading mt-1 text-3xl font-semibold tracking-tight">
+      <div className="font-heading mt-1 text-2xl font-semibold tracking-tight">
         {value.toLocaleString()}
       </div>
     </div>
@@ -266,21 +256,11 @@ function CoverStack({ books, title }: { books: SampleBook[]; title: string }) {
 
 function EmptyBatches() {
   return (
-    <Card className="relative overflow-hidden border-dashed">
-      {/* Tartan top edge — same signature as the hero card */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-1"
-        style={{
-          backgroundImage: "url(/tartan.svg)",
-          backgroundSize: "96px 96px",
-          backgroundRepeat: "repeat-x",
-        }}
-      />
+    <Card className="border-dashed">
       <CardContent className="flex flex-col items-center gap-4 px-6 py-14 text-center">
         <ShelfIllustration />
         <div className="space-y-1">
-          <p className="font-heading text-lg font-semibold">Your shelves are empty</p>
+          <p className="font-heading text-base font-semibold">Your shelves are empty</p>
           <p className="text-muted-foreground max-w-xs text-sm">
             Create your first batch to start photographing, scanning, and cataloging
             books.
