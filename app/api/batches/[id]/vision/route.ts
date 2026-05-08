@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
-import { extractBooksFromImage, type VisionBook } from "@/lib/vision";
+import {
+  extractBooksFromImage,
+  OPUS_MODEL,
+  type VisionBook,
+  type VisionExtraction,
+} from "@/lib/vision";
 import { lookupByIsbn } from "@/lib/lookup";
 import { lookupByTitle } from "@/lib/lookup/title";
 import { extractLcc, stripSpineSticker } from "@/lib/lookup/classification";
@@ -14,6 +19,12 @@ type RouteContext = { params: Promise<{ id: string }> };
 // already enough for our compressed JPEGs, but extending the timeout helps
 // because vision calls can take 15–30s.
 export const maxDuration = 60;
+
+// Below this confidence we re-run the same image on Opus and prefer that
+// result. Tuned for the trade-off: 0.7 catches the genuinely-ambiguous
+// reads without burning Opus budget on every photo (Sonnet on a clean
+// shelf typically lands 0.85+ across the board).
+const LOW_CONFIDENCE = 0.7;
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
@@ -61,9 +72,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   // Reserve the budget slot before calling Claude. If the call fails, this
   // slot is already spent — that's intentional: we don't want a flaky vision
   // call to look free.
-  const budget = await incrementUsage();
+  let budget = await incrementUsage();
 
-  let extraction;
+  let extraction: VisionExtraction;
   try {
     extraction = await extractBooksFromImage(base64, mediaType);
   } catch (err) {
@@ -76,9 +87,35 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     );
   }
 
+  // Confidence-gated escalation: if Sonnet flagged any spine as uncertain
+  // and we still have budget headroom, re-run the same image on Opus and
+  // prefer that result. We never escalate when Sonnet returned zero books
+  // (different problem — bad photo, not bad reading).
+  const lowestConfidence = extraction.books.length
+    ? Math.min(...extraction.books.map((b) => b.confidence))
+    : 1;
+  let escalated = false;
+  if (
+    extraction.books.length > 0 &&
+    lowestConfidence < LOW_CONFIDENCE &&
+    !budget.exhausted
+  ) {
+    budget = await incrementUsage();
+    try {
+      const opus = await extractBooksFromImage(base64, mediaType, OPUS_MODEL);
+      if (opus.books.length > 0) {
+        extraction = opus;
+        escalated = true;
+      }
+    } catch {
+      // Opus failed (rate-limit, timeout) — fall back to Sonnet's read. The
+      // budget tick is already spent; that's acceptable cost-of-trying.
+    }
+  }
+
   if (extraction.books.length === 0) {
     return NextResponse.json({
-      summary: { detected: 0, inserted: 0, budget },
+      summary: { detected: 0, inserted: 0, budget, escalated },
       books: [],
       raw: extraction.raw,
     });
@@ -116,7 +153,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         lcc: lookup?.lcc ?? visionLcc ?? null,
         description: lookup?.description ?? null,
         confidence: book.confidence,
-        rawVision: { vision: book, lookupSource: lookup?.source ?? null },
+        rawVision: {
+          vision: book,
+          lookupSource: lookup?.source ?? null,
+          model: extraction.model,
+        },
       })),
     )
     .returning();
@@ -127,6 +168,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       inserted: inserted.length,
       budget,
       tokens: extraction.usage,
+      model: extraction.model,
+      escalated,
     },
     books: inserted,
   });

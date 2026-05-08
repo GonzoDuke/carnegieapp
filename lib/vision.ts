@@ -1,9 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-// Sonnet 4.6 is a good balance of vision accuracy and cost for spine reading.
-// To switch to a more capable model, swap to "claude-opus-4-7"; for cheaper,
-// "claude-haiku-4-5-20251001".
-const MODEL = "claude-sonnet-4-6";
+// Sonnet 4.6 is the default — good accuracy/cost balance for clean spines.
+// Opus is the escalation target: when a Sonnet pass returns any book under
+// LOW_CONFIDENCE, the route re-runs the same image on Opus to claw back
+// accuracy on the ambiguous shots. Haiku exists if you want to go cheaper.
+export const SONNET_MODEL = "claude-sonnet-4-6";
+export const OPUS_MODEL = "claude-opus-4-7";
 
 // Cached system prompt — prompt caching gives ~70% savings on repeat input
 // tokens, which matters because this prompt is verbose and every shelf photo
@@ -42,6 +44,7 @@ export type VisionBook = {
 export type VisionExtraction = {
   books: VisionBook[];
   raw: unknown;
+  model: string;
   usage: { input_tokens: number; output_tokens: number };
 };
 
@@ -59,9 +62,10 @@ function client(): Anthropic {
 export async function extractBooksFromImage(
   imageBase64: string,
   mediaType: "image/jpeg" | "image/png" | "image/webp",
+  model: string = SONNET_MODEL,
 ): Promise<VisionExtraction> {
   const response = await client().messages.create({
-    model: MODEL,
+    model,
     max_tokens: 2048,
     system: [
       {
@@ -98,6 +102,7 @@ export async function extractBooksFromImage(
   return {
     books,
     raw: { text, parsed },
+    model,
     usage: {
       input_tokens: response.usage.input_tokens,
       output_tokens: response.usage.output_tokens,
