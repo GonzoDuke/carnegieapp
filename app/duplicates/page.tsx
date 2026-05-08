@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { Trash2 } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 import TopBar from "@/components/TopBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,11 +26,13 @@ type DuplicateRow = {
 };
 
 export default async function DuplicatesPage() {
+  const userId = await requireUserId();
   const db = getDb();
 
-  // Pull every book whose ISBN matches another book's ISBN (by canonical
-  // ISBN-13 falling back to ISBN-10). Each row carries its parent batch
-  // for the in-row link. Grouping happens in JS afterward.
+  // Pull every book whose ISBN matches another of THIS user's books (by
+  // canonical ISBN-13 falling back to ISBN-10). Cross-user dupes are
+  // ignored — each user's library is its own duplication scope. Grouping
+  // happens in JS afterward.
   const rows = (await db
     .select({
       id: schema.books.id,
@@ -47,13 +50,17 @@ export default async function DuplicatesPage() {
     .from(schema.books)
     .innerJoin(schema.batches, eq(schema.books.batchId, schema.batches.id))
     .where(
-      sql`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10}) IN (
-        SELECT COALESCE(isbn_13, isbn_10) AS canonical
-        FROM books
-        WHERE isbn_13 IS NOT NULL OR isbn_10 IS NOT NULL
-        GROUP BY COALESCE(isbn_13, isbn_10)
-        HAVING COUNT(*) > 1
-      )`,
+      and(
+        eq(schema.books.ownerId, userId),
+        sql`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10}) IN (
+          SELECT COALESCE(isbn_13, isbn_10) AS canonical
+          FROM books
+          WHERE owner_id = ${userId}
+            AND (isbn_13 IS NOT NULL OR isbn_10 IS NOT NULL)
+          GROUP BY COALESCE(isbn_13, isbn_10)
+          HAVING COUNT(*) > 1
+        )`,
+      ),
     )
     .orderBy(
       sql`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10})`,

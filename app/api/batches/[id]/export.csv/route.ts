@@ -2,18 +2,20 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 import { buildLibraryThingCsv } from "@/lib/csv";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
+  const userId = await requireUserId();
   const { id } = await params;
   const db = getDb();
 
   const [batch] = await db
     .select()
     .from(schema.batches)
-    .where(eq(schema.batches.id, id))
+    .where(and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)))
     .limit(1);
   if (!batch) {
     return NextResponse.json({ error: "Batch not found" }, { status: 404 });
@@ -25,6 +27,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     .where(
       and(
         eq(schema.books.batchId, id),
+        eq(schema.books.ownerId, userId),
         eq(schema.books.status, "confirmed"),
       ),
     );
@@ -38,7 +41,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     await db
       .update(schema.batches)
       .set({ exportedAt: new Date() })
-      .where(eq(schema.batches.id, id));
+      .where(and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)));
   }
 
   return new NextResponse(csv, {

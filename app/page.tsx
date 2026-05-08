@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { AlertTriangle, ArrowRight, Check, Sparkles } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 import { getBudget } from "@/lib/vision-budget";
 import { Card, CardContent } from "@/components/ui/card";
 import CreateBatchDialog from "@/components/CreateBatchDialog";
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
 const PENDING_BOARD_LIMIT = 4;
 
 export default async function HomePage() {
+  const userId = await requireUserId();
   const db = getDb();
 
   const [batches, [{ n: totalPending }], budget, pendingBoardRaw, duplicateGroups] =
@@ -67,12 +69,18 @@ export default async function HomePage() {
           )`,
         })
         .from(schema.batches)
+        .where(eq(schema.batches.ownerId, userId))
         .orderBy(desc(schema.batches.createdAt)),
       db
         .select({ n: count() })
         .from(schema.books)
-        .where(eq(schema.books.status, "pending_review")),
-      getBudget(),
+        .where(
+          and(
+            eq(schema.books.ownerId, userId),
+            eq(schema.books.status, "pending_review"),
+          ),
+        ),
+      getBudget(userId),
       // Worst-confidence-first slice of cross-batch pending books, capped to
       // what fits on the workbench board (4). The full triage queue lives on
       // /search?status=pending_review when the user wants to see more.
@@ -94,7 +102,12 @@ export default async function HomePage() {
           schema.batches,
           eq(schema.books.batchId, schema.batches.id),
         )
-        .where(eq(schema.books.status, "pending_review"))
+        .where(
+          and(
+            eq(schema.books.ownerId, userId),
+            eq(schema.books.status, "pending_review"),
+          ),
+        )
         .orderBy(asc(sql`COALESCE(${schema.books.confidence}, 1)`))
         .limit(PENDING_BOARD_LIMIT),
       db
@@ -103,7 +116,10 @@ export default async function HomePage() {
         })
         .from(schema.books)
         .where(
-          sql`${schema.books.isbn13} IS NOT NULL OR ${schema.books.isbn10} IS NOT NULL`,
+          and(
+            eq(schema.books.ownerId, userId),
+            sql`${schema.books.isbn13} IS NOT NULL OR ${schema.books.isbn10} IS NOT NULL`,
+          ),
         )
         .groupBy(
           sql`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10})`,

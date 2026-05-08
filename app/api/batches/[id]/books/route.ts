@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 import { processUserIsbn } from "@/lib/lookup/isbn";
 import { lookupByIsbn } from "@/lib/lookup";
 
@@ -23,6 +25,7 @@ const CreateBookSchema = z
   });
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  const userId = await requireUserId();
   const { id } = await params;
   const body = await readJsonOrForm(request);
   const parsed = CreateBookSchema.safeParse(body);
@@ -31,6 +34,18 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       { error: "Invalid input", issues: parsed.error.issues },
       { status: 400 },
     );
+  }
+
+  // Verify the batch belongs to the current user before inserting a book
+  // into it. 404 (not 403) so foreign batch IDs don't leak existence.
+  const db = getDb();
+  const [batch] = await db
+    .select({ id: schema.batches.id })
+    .from(schema.batches)
+    .where(and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)))
+    .limit(1);
+  if (!batch) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const data = parsed.data;
@@ -74,10 +89,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     ? `Manual entry. ISBN ${data.isbn?.trim()} not found in lookup chain.`
     : null;
 
-  const db = getDb();
   const [book] = await db
     .insert(schema.books)
     .values({
+      ownerId: userId,
       batchId: id,
       source: "manual",
       status,

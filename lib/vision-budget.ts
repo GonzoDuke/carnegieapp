@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 
 const DEFAULT_LIMIT = 200;
@@ -22,13 +22,22 @@ export type BudgetStatus = {
   exhausted: boolean;
 };
 
-export async function getBudget(): Promise<BudgetStatus> {
+// Per-user budget. The (day, owner_id) composite PK on visionUsage means
+// each user's quota is tracked independently — one user can't drain the
+// daily limit for everyone else. The numeric VISION_DAILY_LIMIT env var
+// is now the per-user cap.
+export async function getBudget(userId: string): Promise<BudgetStatus> {
   const db = getDb();
   const day = todayKey();
   const [row] = await db
     .select()
     .from(schema.visionUsage)
-    .where(eq(schema.visionUsage.day, day))
+    .where(
+      and(
+        eq(schema.visionUsage.day, day),
+        eq(schema.visionUsage.ownerId, userId),
+      ),
+    )
     .limit(1);
   const used = row?.count ?? 0;
   const limit = dailyLimit();
@@ -43,14 +52,14 @@ export async function getBudget(): Promise<BudgetStatus> {
 
 // Atomic increment via UPSERT — concurrent vision requests can't double-spend
 // the budget. Returns the post-increment status.
-export async function incrementUsage(): Promise<BudgetStatus> {
+export async function incrementUsage(userId: string): Promise<BudgetStatus> {
   const db = getDb();
   const day = todayKey();
   const [row] = await db
     .insert(schema.visionUsage)
-    .values({ day, count: 1 })
+    .values({ day, ownerId: userId, count: 1 })
     .onConflictDoUpdate({
-      target: schema.visionUsage.day,
+      target: [schema.visionUsage.day, schema.visionUsage.ownerId],
       set: { count: sql`${schema.visionUsage.count} + 1` },
     })
     .returning();

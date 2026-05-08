@@ -2,6 +2,7 @@ import Link from "next/link";
 import { and, asc, count, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 import { stripIsbn, normalizeIsbn } from "@/lib/lookup/isbn";
 import TopBar from "@/components/TopBar";
 import FilterDropdown from "@/components/FilterDropdown";
@@ -50,6 +51,7 @@ export default async function SearchPage({
 }: {
   searchParams: SearchParams;
 }) {
+  const userId = await requireUserId();
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
   const status = sp.status ?? "all";
@@ -63,9 +65,9 @@ export default async function SearchPage({
 
   const db = getDb();
 
-  // Build the WHERE clause from the active filters. Each filter contributes a
-  // condition iff it's set to something other than the default "all"/empty.
-  const whereParts: SQL[] = [];
+  // Build the WHERE clause from the active filters. Owner filter is always
+  // first — every query must scope to the current user.
+  const whereParts: SQL[] = [eq(schema.books.ownerId, userId)];
 
   if (q) {
     const stripped = stripIsbn(q);
@@ -158,11 +160,12 @@ export default async function SearchPage({
       )
       .where(whereClause),
     db.execute<{ tag: string }>(
-      sql`SELECT DISTINCT tag FROM books, unnest(tags) AS tag ORDER BY tag`,
+      sql`SELECT DISTINCT tag FROM books, unnest(tags) AS tag WHERE books.owner_id = ${userId} ORDER BY tag`,
     ),
     db
       .select({ id: schema.batches.id, name: schema.batches.name })
       .from(schema.batches)
+      .where(eq(schema.batches.ownerId, userId))
       .orderBy(schema.batches.name),
   ]);
 

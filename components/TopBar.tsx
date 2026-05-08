@@ -1,11 +1,30 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { Info, LogOut } from "lucide-react";
+import { getDb, schema } from "@/lib/db/client";
+import { getCurrentUserId } from "@/lib/auth";
 import BrandMark from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
 import SearchBar from "@/components/SearchBar";
 
-export default function TopBar() {
+// One small DB lookup per render — Neon HTTP makes that ~10ms. Returns
+// null on the login page (no session) so we render TopBar without the
+// user chip rather than crashing.
+async function loadCurrentUserName(): Promise<string | null> {
+  const userId = await getCurrentUserId();
+  if (!userId) return null;
+  const db = getDb();
+  const [user] = await db
+    .select({ name: schema.users.name })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .limit(1);
+  return user?.name ?? null;
+}
+
+export default async function TopBar() {
+  const userName = await loadCurrentUserName();
   return (
     <header className="bg-background/80 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30 border-b backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-3 px-4">
@@ -36,6 +55,14 @@ export default function TopBar() {
         <SearchBar />
 
         <nav className="flex items-center gap-1">
+          {userName && (
+            <span
+              className="text-muted-foreground hidden max-w-[120px] truncate px-1.5 text-sm sm:inline"
+              title={`Signed in as ${userName}`}
+            >
+              {userName}
+            </span>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"

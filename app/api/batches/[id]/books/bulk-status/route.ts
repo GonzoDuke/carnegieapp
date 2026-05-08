@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,6 +15,7 @@ const PayloadSchema = z.object({
 });
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  const userId = await requireUserId();
   const { id } = await params;
   const body = await request.json().catch(() => null);
   const parsed = PayloadSchema.safeParse(body);
@@ -26,10 +28,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const db = getDb();
 
-  // Constrain to bookIds that actually belong to this batch — protects
-  // against arbitrary cross-batch updates if a stale ID slipped through.
+  // Constrain to bookIds that belong to this batch AND this user.
+  // Foreign batch IDs or foreign user attempts produce zero-match no-ops.
   const scope = and(
     eq(schema.books.batchId, id),
+    eq(schema.books.ownerId, userId),
     inArray(schema.books.id, parsed.data.bookIds),
   );
 

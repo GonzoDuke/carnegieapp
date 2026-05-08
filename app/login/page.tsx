@@ -1,5 +1,7 @@
 import Image from "next/image";
+import { count } from "drizzle-orm";
 import { Library } from "lucide-react";
+import { getDb, schema } from "@/lib/db/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,16 +17,25 @@ import { Label } from "@/components/ui/label";
 
 type SearchParams = Promise<{
   next?: string;
-  setup?: string;
   error?: string;
 }>;
+
+export const dynamic = "force-dynamic";
 
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: SearchParams;
 }) {
-  const { next, setup, error } = await searchParams;
+  const { next, error } = await searchParams;
+
+  // If no users have been seeded yet, surface that explicitly — the user
+  // landed here without anyone to log in as.
+  const db = getDb();
+  const [{ n: userCount }] = await db
+    .select({ n: count() })
+    .from(schema.users);
+  const noUsers = userCount === 0;
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
@@ -58,11 +69,12 @@ export default async function LoginPage({
 
         <form method="POST" action="/api/login">
           <CardContent className="space-y-4 px-6">
-            {setup && (
+            {noUsers && (
               <Alert variant="destructive">
                 <AlertDescription>
-                  APP_PASSCODE is not set on the server. Add it to .env.local before
-                  logging in.
+                  No users have been created yet. Run{" "}
+                  <code>node scripts/migrate-multitenant.mjs</code> to seed the
+                  default user from APP_PASSCODE.
                 </AlertDescription>
               </Alert>
             )}

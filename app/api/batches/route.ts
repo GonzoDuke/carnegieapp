@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 
 export async function GET() {
+  const userId = await requireUserId();
   const db = getDb();
   const rows = await db
     .select()
     .from(schema.batches)
+    .where(eq(schema.batches.ownerId, userId))
     .orderBy(desc(schema.batches.createdAt));
   return NextResponse.json({ batches: rows });
 }
@@ -20,6 +23,7 @@ const CreateBatchSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const userId = await requireUserId();
   const body = await readJsonOrForm(request);
   const parsed = CreateBatchSchema.safeParse(body);
   if (!parsed.success) {
@@ -32,6 +36,7 @@ export async function POST(request: NextRequest) {
   const [row] = await db
     .insert(schema.batches)
     .values({
+      ownerId: userId,
       name: parsed.data.name,
       location: parsed.data.location || null,
       notes: parsed.data.notes || null,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AUTH_COOKIE } from "@/lib/auth";
+import { AUTH_COOKIE, verifySession } from "@/lib/auth";
 
 // Anything PWA / icon / login-related must load without a session, otherwise
 // browsers can't fetch icons from the manifest before the user signs in,
@@ -19,23 +19,11 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (isPublicPath(pathname)) return NextResponse.next();
 
-  const expected = process.env.APP_PASSCODE;
-  if (!expected) {
-    // No passcode configured — fail closed.
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json(
-        { error: "APP_PASSCODE is not configured on the server." },
-        { status: 503 },
-      );
-    }
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("setup", "1");
-    return NextResponse.redirect(url);
-  }
-
+  // No DB lookup — verifySession HMAC-checks the cookie against
+  // APP_AUTH_SECRET, returning the userId iff the signature is valid.
+  // Per-user data filtering happens downstream in pages and routes.
   const provided = request.cookies.get(AUTH_COOKIE)?.value;
-  if (provided === expected) return NextResponse.next();
+  if (provided && verifySession(provided)) return NextResponse.next();
 
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

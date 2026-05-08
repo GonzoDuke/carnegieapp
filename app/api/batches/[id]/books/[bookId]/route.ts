@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 import { processUserIsbn } from "@/lib/lookup/isbn";
 import { lookupByIsbn } from "@/lib/lookup";
 import { lookupByTitle } from "@/lib/lookup/title";
@@ -25,6 +26,7 @@ const ActionSchema = z.object({
 });
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  const userId = await requireUserId();
   const { id, bookId } = await params;
   const form = await request.formData();
 
@@ -49,10 +51,18 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   // as a delete so we never persist that status.
   const isDelete = action === "delete" || parsed.data.status === "rejected";
 
+  // books.owner_id is denormalized off of batches.owner_id at insert time,
+  // so per-book ownership checks can filter on books directly without
+  // joining batches. Every query below scopes by both bookId and userId.
+  const ownerScope = and(
+    eq(schema.books.id, bookId),
+    eq(schema.books.ownerId, userId),
+  );
+
   if (isDelete) {
     const [deleted] = await db
       .delete(schema.books)
-      .where(eq(schema.books.id, bookId))
+      .where(ownerScope)
       .returning();
     if (!deleted) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -70,7 +80,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const [current] = await db
       .select({ tags: schema.books.tags })
       .from(schema.books)
-      .where(eq(schema.books.id, bookId))
+      .where(ownerScope)
       .limit(1);
     if (!current) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -79,7 +89,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     await db
       .update(schema.books)
       .set({ tags: filtered })
-      .where(eq(schema.books.id, bookId));
+      .where(ownerScope);
     const redirectUrl = new URL(`/batches/${id}`, request.url);
     redirectUrl.hash = `book-${bookId}`;
     return NextResponse.redirect(redirectUrl, { status: 303 });
@@ -111,7 +121,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const [book] = await db
     .update(schema.books)
     .set(updates)
-    .where(eq(schema.books.id, bookId))
+    .where(ownerScope)
     .returning();
 
   if (!book) {
@@ -176,7 +186,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   await db
     .update(schema.books)
     .set(lookupUpdates)
-    .where(eq(schema.books.id, bookId));
+    .where(ownerScope);
 
   redirectUrl.searchParams.set("relookup", "hit");
   if (resultSource) redirectUrl.searchParams.set("source", resultSource);

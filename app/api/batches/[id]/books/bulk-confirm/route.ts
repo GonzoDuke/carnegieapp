@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { and, eq, gte } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,6 +14,7 @@ const PayloadSchema = z.object({
 });
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  const userId = await requireUserId();
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const parsed = PayloadSchema.safeParse(body);
@@ -24,14 +26,16 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   const db = getDb();
-  // gte excludes NULL confidence automatically — manual / barcode-only rows
-  // (which have no confidence score) are left in pending_review.
+  // The owner_id filter on books makes the operation safe even if a foreign
+  // batch id is supplied — the WHERE will return zero matches and the
+  // update is a no-op rather than a leak. gte excludes NULL confidence.
   const updated = await db
     .update(schema.books)
     .set({ status: "confirmed" })
     .where(
       and(
         eq(schema.books.batchId, id),
+        eq(schema.books.ownerId, userId),
         eq(schema.books.status, "pending_review"),
         gte(schema.books.confidence, parsed.data.minConfidence),
       ),

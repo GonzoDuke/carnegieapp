@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 import {
   extractBooksFromImage,
   OPUS_MODEL,
@@ -27,13 +28,14 @@ export const maxDuration = 60;
 const LOW_CONFIDENCE = 0.7;
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  const userId = await requireUserId();
   const { id } = await params;
 
   const db = getDb();
   const [batch] = await db
     .select()
     .from(schema.batches)
-    .where(eq(schema.batches.id, id))
+    .where(and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)))
     .limit(1);
   if (!batch) {
     return NextResponse.json({ error: "Batch not found" }, { status: 404 });
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   // Pre-flight budget check (cheap). The actual decrement happens after we
   // commit to spending the call.
-  const preflight = await getBudget();
+  const preflight = await getBudget(userId);
   if (preflight.exhausted) {
     return NextResponse.json(
       {
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   // Reserve the budget slot before calling Claude. If the call fails, this
   // slot is already spent — that's intentional: we don't want a flaky vision
   // call to look free.
-  let budget = await incrementUsage();
+  let budget = await incrementUsage(userId);
 
   let extraction: VisionExtraction;
   try {
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     lowestConfidence < LOW_CONFIDENCE &&
     !budget.exhausted
   ) {
-    budget = await incrementUsage();
+    budget = await incrementUsage(userId);
     try {
       const opus = await extractBooksFromImage(base64, mediaType, OPUS_MODEL);
       if (opus.books.length > 0) {
@@ -130,6 +132,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     .insert(schema.books)
     .values(
       enriched.map(({ book, lookup, visionLcc }) => ({
+        ownerId: userId,
         batchId: id,
         source: "vision" as const,
         // Vision results always go through review — even high-confidence ones,
@@ -210,6 +213,7 @@ function pickMediaType(
 
 export async function GET() {
   // Convenience GET so the UI footer can render today's budget without a POST.
-  const budget = await getBudget();
+  const userId = await requireUserId();
+  const budget = await getBudget(userId);
   return NextResponse.json({ budget });
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { requireUserId } from "@/lib/auth";
 import {
   ArrowLeft,
   BookPlus,
@@ -47,21 +48,31 @@ export default async function BatchDetailPage({
   params: Params;
   searchParams: SearchParams;
 }) {
+  const userId = await requireUserId();
   const { id } = await params;
   const { relookup, manual, source } = await searchParams;
 
   const db = getDb();
+  // Filter by both id and ownerId so a batch belonging to another user
+  // 404s rather than reveals existence.
   const [batch] = await db
     .select()
     .from(schema.batches)
-    .where(eq(schema.batches.id, id))
+    .where(
+      and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)),
+    )
     .limit(1);
   if (!batch) notFound();
 
   const books = await db
     .select()
     .from(schema.books)
-    .where(eq(schema.books.batchId, id));
+    .where(
+      and(
+        eq(schema.books.batchId, id),
+        eq(schema.books.ownerId, userId),
+      ),
+    );
 
   const confirmedCount = books.filter((b) => b.status === "confirmed").length;
   const pendingCount = books.filter((b) => b.status === "pending_review").length;
@@ -71,7 +82,7 @@ export default async function BatchDetailPage({
       b.confidence !== null &&
       b.confidence >= BULK_CONFIRM_THRESHOLD,
   ).length;
-  const budget = await getBudget();
+  const budget = await getBudget(userId);
 
   return (
     <>

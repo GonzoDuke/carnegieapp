@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
+import { requireUserId } from "@/lib/auth";
 import { lookupByIsbn } from "@/lib/lookup";
 
 const PayloadSchema = z.object({
@@ -8,6 +9,9 @@ const PayloadSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // Stateless lookup — no user filter applies, but we still gate on auth
+  // so unauthenticated callers can't drive provider rate limits.
+  await requireUserId();
   const body = await request.json().catch(() => null);
   const parsed = PayloadSchema.safeParse(body);
   if (!parsed.success) {

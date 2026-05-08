@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
+import { requireUserId } from "@/lib/auth";
 import { lookupByIsbn } from "@/lib/lookup";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -11,6 +13,7 @@ const ScanPayloadSchema = z.object({
 });
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  const userId = await requireUserId();
   const { id } = await params;
   const body = await request.json().catch(() => null);
   const parsed = ScanPayloadSchema.safeParse(body);
@@ -22,6 +25,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     );
   }
 
+  const db = getDb();
+  // Verify batch ownership before inserting — 404 to avoid leaking existence.
+  const [batch] = await db
+    .select({ id: schema.batches.id })
+    .from(schema.batches)
+    .where(and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)))
+    .limit(1);
+  if (!batch) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const code = parsed.data.code;
   const outcome = await lookupByIsbn(code);
 
@@ -29,10 +43,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const isbn10 = outcome.isbn.isbn10;
   const matched = outcome.result;
 
-  const db = getDb();
   const [book] = await db
     .insert(schema.books)
     .values({
+      ownerId: userId,
       batchId: id,
       source: "barcode",
       // Barcode + lookup hit is high-confidence; default to confirmed (still editable).
