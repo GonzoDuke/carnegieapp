@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { count, desc, eq, gt, sql } from "drizzle-orm";
+import { asc, count, desc, eq, gt, sql } from "drizzle-orm";
 import { BookCheck, BookMarked, Check, Clock, Library, Sparkles } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { getBudget } from "@/lib/vision-budget";
@@ -7,6 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import CreateBatchDialog from "@/components/CreateBatchDialog";
 import TopBar from "@/components/TopBar";
 import { BookCover } from "@/components/BookCover";
+import QuickAddBar from "@/components/QuickAddBar";
+import PendingReviewPanel, {
+  type PendingBook,
+} from "@/components/PendingReviewPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +18,16 @@ export default async function HomePage() {
   const db = getDb();
 
   // One query for the batch list (with per-batch counts and sample cover
-  // ISBNs); four parallel count queries for the dashboard stats. Neon HTTP
-  // pools these in parallel.
-  const [batches, [{ n: totalBooks }], [{ n: confirmedBooks }], [{ n: weeklyBooks }], budget] =
-    await Promise.all([
+  // ISBNs); four parallel count queries for the dashboard stats; one
+  // cross-batch query for pending review items. Neon HTTP pools these.
+  const [
+    batches,
+    [{ n: totalBooks }],
+    [{ n: confirmedBooks }],
+    [{ n: weeklyBooks }],
+    budget,
+    pendingBooksRaw,
+  ] = await Promise.all([
       db
         .select({
           id: schema.batches.id,
@@ -68,13 +78,57 @@ export default async function HomePage() {
         .from(schema.books)
         .where(gt(schema.books.createdAt, sql`NOW() - INTERVAL '7 days'`)),
       getBudget(),
+      // Cross-batch pending-review queue, worst-confidence first so triage
+      // surfaces the rows most likely to need a real decision. Cap at 12
+      // so the sidebar doesn't grow indefinitely.
+      db
+        .select({
+          id: schema.books.id,
+          batchId: schema.books.batchId,
+          batchName: schema.batches.name,
+          title: schema.books.title,
+          authors: schema.books.authors,
+          isbn13: schema.books.isbn13,
+          isbn10: schema.books.isbn10,
+          coverUrl: schema.books.coverUrl,
+          source: schema.books.source,
+          confidence: schema.books.confidence,
+        })
+        .from(schema.books)
+        .innerJoin(
+          schema.batches,
+          eq(schema.books.batchId, schema.batches.id),
+        )
+        .where(eq(schema.books.status, "pending_review"))
+        .orderBy(asc(sql`COALESCE(${schema.books.confidence}, 1)`))
+        .limit(12),
     ]);
+
+  const pendingBooks: PendingBook[] = pendingBooksRaw.map((b) => ({
+    id: b.id,
+    batchId: b.batchId,
+    batchName: b.batchName,
+    title: b.title,
+    authors: b.authors,
+    isbn13: b.isbn13,
+    isbn10: b.isbn10,
+    coverUrl: b.coverUrl,
+    source: b.source,
+    confidence: b.confidence,
+  }));
+
+  // QuickAddBar needs a small slice of batch data; reuse the existing rows.
+  const quickAddBatches = batches.map((b) => ({
+    id: b.id,
+    name: b.name,
+    location: b.location,
+  }));
 
   return (
     <>
       <TopBar />
 
-      <main className="mx-auto w-full max-w-5xl space-y-10 px-4 py-8 sm:py-10">
+      <main className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 sm:py-10">
         {/* Hero */}
         <section className="from-primary/8 via-background to-background relative overflow-hidden rounded-2xl border bg-gradient-to-br p-6 sm:p-8">
           <div className="from-primary/15 pointer-events-none absolute -right-20 -top-20 size-64 rounded-full bg-gradient-to-br to-transparent blur-3xl" />
@@ -96,94 +150,127 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* Stats */}
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatTile
-            icon={<BookMarked className="size-4" />}
-            label="Books cataloged"
-            value={totalBooks}
-          />
-          <StatTile
-            icon={<BookCheck className="size-4" />}
-            label="Confirmed"
-            value={confirmedBooks}
-          />
-          <StatTile
-            icon={<Library className="size-4" />}
-            label="Batches"
-            value={batches.length}
-          />
-          <StatTile
-            icon={<Clock className="size-4" />}
-            label="This week"
-            value={weeklyBooks}
-          />
-        </section>
+        {/* On wide screens: main content (2/3) + pending-review sidebar (1/3).
+            On phone/tablet: stacks single-column. */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="min-w-0 space-y-8 lg:col-span-2">
+            {/* Quick-add ISBN — single-keystroke entry into a chosen batch */}
+            <section className="space-y-2">
+              <div className="flex items-baseline justify-between">
+                <h2 className="font-heading text-base font-semibold tracking-tight">
+                  Quick add
+                </h2>
+                <span className="text-muted-foreground text-[11px]">
+                  ISBN → lookup → into the batch you pick
+                </span>
+              </div>
+              <QuickAddBar batches={quickAddBatches} />
+            </section>
 
-        {/* Batches */}
-        <section className="space-y-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-heading text-xl font-semibold tracking-tight">
-              Batches
-            </h2>
-            <span className="text-muted-foreground text-xs">
-              Vision API: {budget.used} / {budget.limit} today
-            </span>
+            {/* Stats */}
+            <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatTile
+                icon={<BookMarked className="size-4" />}
+                label="Books cataloged"
+                value={totalBooks}
+              />
+              <StatTile
+                icon={<BookCheck className="size-4" />}
+                label="Confirmed"
+                value={confirmedBooks}
+              />
+              <StatTile
+                icon={<Library className="size-4" />}
+                label="Batches"
+                value={batches.length}
+              />
+              <StatTile
+                icon={<Clock className="size-4" />}
+                label="This week"
+                value={weeklyBooks}
+              />
+            </section>
+
+            {/* Batches */}
+            <section className="space-y-4">
+              <div className="flex items-baseline justify-between">
+                <h2 className="font-heading text-xl font-semibold tracking-tight">
+                  Batches
+                </h2>
+                <span className="text-muted-foreground text-xs">
+                  Vision API: {budget.used} / {budget.limit} today
+                </span>
+              </div>
+
+              {batches.length === 0 ? (
+                <EmptyBatches />
+              ) : (
+                <ul className="grid gap-3 sm:grid-cols-2">
+                  {batches.map((b) => (
+                    <li key={b.id}>
+                      <Link href={`/batches/${b.id}`} className="group block">
+                        <Card className="hover:border-primary/40 hover:-translate-y-0.5 overflow-hidden transition-all hover:shadow-md">
+                          <CardContent className="flex items-center gap-4 p-4">
+                            <CoverStack books={b.sampleBooks} title={b.name} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <div className="font-heading group-hover:text-primary truncate text-base font-semibold transition-colors">
+                                  {b.name}
+                                </div>
+                              </div>
+                              {b.location && (
+                                <div className="text-muted-foreground truncate text-xs">
+                                  {b.location}
+                                </div>
+                              )}
+                              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                                <span className="text-foreground font-medium">
+                                  {b.bookCount}{" "}
+                                  {b.bookCount === 1 ? "book" : "books"}
+                                </span>
+                                {b.confirmedCount > 0 && (
+                                  <span className="text-primary">
+                                    {b.confirmedCount} ready
+                                  </span>
+                                )}
+                                {b.exportedAt && (
+                                  <span className="text-primary inline-flex items-center gap-0.5">
+                                    <Check className="size-3" />
+                                    Sent
+                                  </span>
+                                )}
+                                <span className="text-muted-foreground ml-auto">
+                                  {b.createdAt.toLocaleDateString(undefined, {
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </span>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </div>
 
-          {batches.length === 0 ? (
-            <EmptyBatches />
-          ) : (
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {batches.map((b) => (
-                <li key={b.id}>
-                  <Link href={`/batches/${b.id}`} className="group block">
-                    <Card className="hover:border-primary/40 hover:-translate-y-0.5 overflow-hidden transition-all hover:shadow-md">
-                      <CardContent className="flex items-center gap-4 p-4">
-                        <CoverStack books={b.sampleBooks} title={b.name} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <div className="font-heading group-hover:text-primary truncate text-base font-semibold transition-colors">
-                              {b.name}
-                            </div>
-                          </div>
-                          {b.location && (
-                            <div className="text-muted-foreground truncate text-xs">
-                              {b.location}
-                            </div>
-                          )}
-                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-                            <span className="text-foreground font-medium">
-                              {b.bookCount}{" "}
-                              {b.bookCount === 1 ? "book" : "books"}
-                            </span>
-                            {b.confirmedCount > 0 && (
-                              <span className="text-primary">
-                                {b.confirmedCount} ready
-                              </span>
-                            )}
-                            {b.exportedAt && (
-                              <span className="text-primary inline-flex items-center gap-0.5">
-                                <Check className="size-3" />
-                                Sent
-                              </span>
-                            )}
-                            <span className="text-muted-foreground ml-auto">
-                              {b.createdAt.toLocaleDateString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+          <aside className="space-y-3 lg:col-span-1">
+            <div className="flex items-baseline justify-between">
+              <h2 className="font-heading text-xl font-semibold tracking-tight">
+                Pending review
+              </h2>
+              {pendingBooks.length > 0 && (
+                <span className="text-muted-foreground text-xs">
+                  {pendingBooks.length} shown
+                </span>
+              )}
+            </div>
+            <PendingReviewPanel books={pendingBooks} />
+          </aside>
+        </div>
       </main>
     </>
   );
