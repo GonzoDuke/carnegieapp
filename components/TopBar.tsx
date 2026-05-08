@@ -8,28 +8,27 @@ import SearchBar from "@/components/SearchBar";
 export default function TopBar() {
   return (
     <header className="bg-background/80 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30 border-b backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-3 px-4">
+      <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-3 px-4">
         <Link
           href="/"
-          className="text-foreground hover:text-primary group flex items-center gap-2 transition-colors"
+          className="text-foreground hover:text-primary group flex items-center gap-2.5 transition-colors"
         >
-          {/* Tartan-backed chip — the books float in front of a small piece
-              of Modern Carnegie tartan. The chip is the threshold for tartan
-              legibility (32–36px); below this the sett collapses into a
-              colored block. White fill + drop-shadow keeps the books
-              readable regardless of which stripe is behind them. The 1px
-              gold ring frames it like a bookplate. */}
+          {/* Tartan-backed chip — the books float in front of a piece of
+              Modern Carnegie tartan. At 44px the sett reads clearly as
+              fabric. White fill + drop-shadow keeps the books readable
+              regardless of which stripe is behind them. The 1px gold ring
+              frames it like a bookplate. */}
           <span
-            className="ring-primary/40 relative flex size-9 items-center justify-center overflow-hidden rounded-md ring-1 transition-transform group-hover:rotate-2"
+            className="ring-primary/40 relative flex size-11 items-center justify-center overflow-hidden rounded-md ring-1 transition-transform group-hover:rotate-2"
             style={{
               backgroundImage: "url(/tartanImagePrototype.jpg)",
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
           >
-            <BrandMark className="size-5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]" />
+            <BrandMark className="size-7 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]" />
           </span>
-          <span className="font-heading text-lg font-semibold tracking-tight">
+          <span className="font-heading text-2xl font-semibold tracking-tight">
             Carnegie
           </span>
         </Link>
