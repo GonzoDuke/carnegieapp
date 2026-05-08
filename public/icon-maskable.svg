@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable icon: full-bleed background, content sits inside the safe
+       40% center zone (Android masks with a circle/rounded square). -->
+  <rect width="512" height="512" fill="#0a0a0a"/>
+  <g fill="#fafafa">
+    <rect x="180" y="180" width="36" height="152" rx="4"/>
+    <rect x="222" y="200" width="34" height="132" rx="4"/>
+    <rect x="262" y="172" width="30" height="160" rx="4" transform="rotate(6 277 252)"/>
+    <rect x="298" y="190" width="28" height="142" rx="4" transform="rotate(-4 312 261)"/>
+  </g>
+  <rect x="172" y="334" width="168" height="12" rx="3" fill="#fafafa"/>
+</svg>

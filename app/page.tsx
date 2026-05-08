@@ -1,87 +1,307 @@
 import Link from "next/link";
-import { desc } from "drizzle-orm";
+import { count, desc, eq, gt, sql } from "drizzle-orm";
+import { BookCheck, BookMarked, Check, Clock, Library, Sparkles } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
+import { getBudget } from "@/lib/vision-budget";
+import { Card, CardContent } from "@/components/ui/card";
+import CreateBatchDialog from "@/components/CreateBatchDialog";
+import TopBar from "@/components/TopBar";
+import { BookCover } from "@/components/BookCover";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const db = getDb();
-  const batches = await db
-    .select()
-    .from(schema.batches)
-    .orderBy(desc(schema.batches.createdAt));
+
+  // One query for the batch list (with per-batch counts and sample cover
+  // ISBNs); four parallel count queries for the dashboard stats. Neon HTTP
+  // pools these in parallel.
+  const [batches, [{ n: totalBooks }], [{ n: confirmedBooks }], [{ n: weeklyBooks }], budget] =
+    await Promise.all([
+      db
+        .select({
+          id: schema.batches.id,
+          name: schema.batches.name,
+          location: schema.batches.location,
+          createdAt: schema.batches.createdAt,
+          exportedAt: schema.batches.exportedAt,
+          bookCount: sql<number>`(SELECT COUNT(*)::int FROM ${schema.books} WHERE ${schema.books.batchId} = ${schema.batches.id})`,
+          confirmedCount: sql<number>`(SELECT COUNT(*)::int FROM ${schema.books} WHERE ${schema.books.batchId} = ${schema.batches.id} AND ${schema.books.status} = 'confirmed')`,
+          sampleBooks: sql<
+            Array<{
+              coverUrl: string | null;
+              isbn13: string | null;
+              isbn10: string | null;
+              title: string;
+            }>
+          >`(
+            SELECT COALESCE(
+              json_agg(
+                json_build_object(
+                  'coverUrl', cover_url,
+                  'isbn13', isbn_13,
+                  'isbn10', isbn_10,
+                  'title', title
+                )
+              ),
+              '[]'::json
+            )
+            FROM (
+              SELECT cover_url, isbn_13, isbn_10, title
+              FROM ${schema.books}
+              WHERE ${schema.books.batchId} = ${schema.batches.id}
+                AND ${schema.books.status} = 'confirmed'
+              ORDER BY created_at DESC
+              LIMIT 3
+            ) sub
+          )`,
+        })
+        .from(schema.batches)
+        .orderBy(desc(schema.batches.createdAt)),
+      db.select({ n: count() }).from(schema.books),
+      db
+        .select({ n: count() })
+        .from(schema.books)
+        .where(eq(schema.books.status, "confirmed")),
+      db
+        .select({ n: count() })
+        .from(schema.books)
+        .where(gt(schema.books.createdAt, sql`NOW() - INTERVAL '7 days'`)),
+      getBudget(),
+    ]);
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-8 px-4 py-8">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Zippy Planet</h1>
-          <p className="text-sm text-zinc-500">
-            Photograph shelves, scan barcodes, export to LibraryThing.
+    <>
+      <TopBar />
+
+      <main className="mx-auto w-full max-w-5xl space-y-10 px-4 py-8 sm:py-10">
+        {/* Hero */}
+        <section className="from-primary/8 via-background to-background relative overflow-hidden rounded-2xl border bg-gradient-to-br p-6 sm:p-8">
+          <div className="from-primary/15 pointer-events-none absolute -right-20 -top-20 size-64 rounded-full bg-gradient-to-br to-transparent blur-3xl" />
+          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-2">
+              <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
+                <Sparkles className="size-3" />
+                Your library
+              </div>
+              <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+                Welcome back
+              </h1>
+              <p className="text-muted-foreground max-w-md text-sm">
+                Photograph shelves, scan barcodes, then export everything to
+                LibraryThing in one tidy CSV.
+              </p>
+            </div>
+            <CreateBatchDialog />
+          </div>
+        </section>
+
+        {/* Stats */}
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile
+            icon={<BookMarked className="size-4" />}
+            label="Books cataloged"
+            value={totalBooks}
+          />
+          <StatTile
+            icon={<BookCheck className="size-4" />}
+            label="Confirmed"
+            value={confirmedBooks}
+          />
+          <StatTile
+            icon={<Library className="size-4" />}
+            label="Batches"
+            value={batches.length}
+          />
+          <StatTile
+            icon={<Clock className="size-4" />}
+            label="This week"
+            value={weeklyBooks}
+          />
+        </section>
+
+        {/* Batches */}
+        <section className="space-y-4">
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-heading text-xl font-semibold tracking-tight">
+              Batches
+            </h2>
+            <span className="text-muted-foreground text-xs">
+              Vision API: {budget.used} / {budget.limit} today
+            </span>
+          </div>
+
+          {batches.length === 0 ? (
+            <EmptyBatches />
+          ) : (
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {batches.map((b) => (
+                <li key={b.id}>
+                  <Link href={`/batches/${b.id}`} className="group block">
+                    <Card className="hover:border-primary/40 hover:-translate-y-0.5 overflow-hidden transition-all hover:shadow-md">
+                      <CardContent className="flex items-center gap-4 p-4">
+                        <CoverStack books={b.sampleBooks} title={b.name} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="font-heading group-hover:text-primary truncate text-base font-semibold transition-colors">
+                              {b.name}
+                            </div>
+                          </div>
+                          {b.location && (
+                            <div className="text-muted-foreground truncate text-xs">
+                              {b.location}
+                            </div>
+                          )}
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                            <span className="text-foreground font-medium">
+                              {b.bookCount}{" "}
+                              {b.bookCount === 1 ? "book" : "books"}
+                            </span>
+                            {b.confirmedCount > 0 && (
+                              <span className="text-primary">
+                                {b.confirmedCount} ready
+                              </span>
+                            )}
+                            {b.exportedAt && (
+                              <span className="text-primary inline-flex items-center gap-0.5">
+                                <Check className="size-3" />
+                                Sent
+                              </span>
+                            )}
+                            <span className="text-muted-foreground ml-auto">
+                              {b.createdAt.toLocaleDateString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
+    </>
+  );
+}
+
+function StatTile({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="bg-card hover:border-primary/30 rounded-xl border p-4 transition-colors">
+      <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider">
+        {icon}
+        {label}
+      </div>
+      <div className="font-heading mt-1 text-2xl font-semibold tracking-tight">
+        {value.toLocaleString()}
+      </div>
+    </div>
+  );
+}
+
+type SampleBook = {
+  coverUrl: string | null;
+  isbn13: string | null;
+  isbn10: string | null;
+  title: string;
+};
+
+function CoverStack({ books, title }: { books: SampleBook[]; title: string }) {
+  // Three-deep visual stack, fanned slightly. Empty / missing slots show the
+  // same fallback as a single cover so batches with zero confirmed books
+  // still render cleanly.
+  const slots: (SampleBook | null)[] = [
+    books[0] ?? null,
+    books[1] ?? null,
+    books[2] ?? null,
+  ];
+
+  return (
+    <div className="relative h-20 w-16 shrink-0">
+      {slots.map((book, i) => (
+        <div
+          key={i}
+          className="absolute"
+          style={{
+            left: `${i * 6}px`,
+            top: `${i * 2}px`,
+            transform: `rotate(${(i - 1) * 3}deg)`,
+            zIndex: slots.length - i,
+          }}
+        >
+          <BookCover
+            coverUrl={book?.coverUrl}
+            isbn13={book?.isbn13}
+            isbn10={book?.isbn10}
+            title={book?.title ?? title}
+            size="sm"
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyBatches() {
+  return (
+    <Card className="border-dashed">
+      <CardContent className="flex flex-col items-center gap-4 px-6 py-14 text-center">
+        <ShelfIllustration />
+        <div className="space-y-1">
+          <p className="font-heading text-base font-semibold">Your shelves are empty</p>
+          <p className="text-muted-foreground max-w-xs text-sm">
+            Create your first batch to start photographing, scanning, and cataloging
+            books.
           </p>
         </div>
-        <form method="POST" action="/api/logout">
-          <button
-            type="submit"
-            className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-          >
-            Log out
-          </button>
-        </form>
-      </header>
+      </CardContent>
+    </Card>
+  );
+}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-500">
-          New batch
-        </h2>
-        <form
-          method="POST"
-          action="/api/batches"
-          className="flex gap-2"
-        >
-          <input
-            type="text"
-            name="name"
-            required
-            placeholder="e.g. Garage box 3"
-            maxLength={200}
-            className="flex-1 rounded border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
-          />
-          <button
-            type="submit"
-            className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            Create
-          </button>
-        </form>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-500">
-          Batches
-        </h2>
-        {batches.length === 0 ? (
-          <p className="rounded border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-            No batches yet. Create one above to start cataloging.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-200 rounded border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-            {batches.map((b) => (
-              <li key={b.id}>
-                <Link
-                  href={`/batches/${b.id}`}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-                >
-                  <span className="font-medium">{b.name}</span>
-                  <span className="text-xs text-zinc-500">
-                    {b.createdAt.toLocaleString()}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+function ShelfIllustration() {
+  return (
+    <svg
+      viewBox="0 0 200 120"
+      className="text-primary/40 h-24 w-auto"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* Shelf line */}
+      <line x1="20" y1="100" x2="180" y2="100" />
+      {/* Books */}
+      <rect x="35" y="55" width="14" height="45" rx="2" />
+      <rect x="52" y="62" width="12" height="38" rx="2" />
+      <rect x="67" y="50" width="16" height="50" rx="2" />
+      <rect x="86" y="58" width="13" height="42" rx="2" />
+      <rect
+        x="103"
+        y="48"
+        width="12"
+        height="52"
+        rx="2"
+        transform="rotate(8 109 74)"
+      />
+      <rect x="125" y="60" width="15" height="40" rx="2" />
+      <rect x="143" y="54" width="14" height="46" rx="2" />
+      {/* Sparkle */}
+      <path d="M165 35 L165 45 M160 40 L170 40" />
+    </svg>
   );
 }

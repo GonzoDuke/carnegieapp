@@ -1,3 +1,17 @@
+import { Library } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 type SearchParams = Promise<{
   next?: string;
   setup?: string;
@@ -13,43 +27,52 @@ export default async function LoginPage({
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
-      <form
-        method="POST"
-        action="/api/login"
-        className="w-full max-w-sm space-y-4 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800"
-      >
-        <div>
-          <h1 className="text-xl font-semibold">Zippy Planet</h1>
-          <p className="mt-1 text-sm text-zinc-500">Enter passcode to continue.</p>
-        </div>
+      <Card className="w-full max-w-sm">
+        <CardHeader className="items-center text-center">
+          <div className="bg-primary/10 text-primary mx-auto flex size-12 items-center justify-center rounded-full">
+            <Library className="size-6" />
+          </div>
+          <CardTitle className="mt-2 text-2xl tracking-tight">Zippy Planet</CardTitle>
+          <CardDescription>Enter your passcode to continue.</CardDescription>
+        </CardHeader>
 
-        {setup && (
-          <p className="rounded bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-            APP_PASSCODE is not set on the server. Add it to .env.local before logging in.
-          </p>
-        )}
-        {error === "invalid" && (
-          <p className="rounded bg-red-50 p-2 text-xs text-red-800 dark:bg-red-950 dark:text-red-200">
-            Incorrect passcode.
-          </p>
-        )}
+        <form method="POST" action="/api/login">
+          <CardContent className="space-y-4">
+            {setup && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  APP_PASSCODE is not set on the server. Add it to .env.local before
+                  logging in.
+                </AlertDescription>
+              </Alert>
+            )}
+            {error === "invalid" && (
+              <Alert variant="destructive">
+                <AlertDescription>Incorrect passcode.</AlertDescription>
+              </Alert>
+            )}
 
-        <input type="hidden" name="next" value={next ?? "/"} />
-        <input
-          type="password"
-          name="passcode"
-          autoComplete="current-password"
-          required
-          autoFocus
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
-        />
-        <button
-          type="submit"
-          className="w-full rounded bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          Sign in
-        </button>
-      </form>
+            <input type="hidden" name="next" value={next ?? "/"} />
+            <div className="grid gap-2">
+              <Label htmlFor="passcode">Passcode</Label>
+              <Input
+                id="passcode"
+                type="password"
+                name="passcode"
+                autoComplete="current-password"
+                required
+                autoFocus
+              />
+            </div>
+          </CardContent>
+
+          <CardFooter>
+            <Button type="submit" className="w-full">
+              Sign in
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
     </main>
   );
 }

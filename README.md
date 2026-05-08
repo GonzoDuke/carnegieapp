@@ -42,12 +42,12 @@ Open <http://localhost:3000>, enter your passcode, create a batch.
 ## Phase status
 
 - **Phase 1 — Skeleton:** ✅ Next.js scaffold, Neon + Drizzle, passcode auth, batch CRUD UI.
-- **Phase 2 — Lookup library:** ISBN normalization + ISBNdb / Open Library / Google Books / LibraryThing.
-- **Phase 3 — Barcode flow:** `@zxing/browser` scanner.
-- **Phase 4 — Vision flow:** Claude vision → per-book lookup → review queue.
-- **Phase 5 — Review UI:** confirm / edit / reject per book.
-- **Phase 6 — CSV export:** LibraryThing import format.
-- **Phase 7 — PWA polish:** manifest, icons, offline shell, daily cost cap.
+- **Phase 2 — Lookup library:** ✅ ISBN normalization + ISBNdb → Open Library / Google Books chain. Debug at `/lookup`.
+- **Phase 3 — Barcode flow:** ✅ `@zxing/browser` scanner wired through the lookup chain — scans become real metadata.
+- **Phase 4 — Vision flow:** ✅ Photo a shelf → Claude Sonnet 4.6 extracts books with prompt caching → per-book lookup (ISBN if visible, else title+author search) → review queue. UTC daily cap surfaced in the page footer.
+- **Phase 5 — Review UI:** ✅ Per-book Save edits / Confirm / Reject + bulk "Confirm N (≥0.85)" for high-confidence vision results.
+- **Phase 6 — CSV export:** ✅ LibraryThing import format. Export button on the batch page; only confirmed books are exported, batch name auto-tagged.
+- **Phase 7 — PWA polish:** ✅ Web manifest, generated icons (browser favicon + iOS apple-touch-icon + maskable SVG), Apple home-screen meta tags, daily cost cap surfaced in the page footer. Add to Home Screen on iOS / Install on Android both work.
 
 See `~/.claude/plans/i-want-to-make-zippy-planet.md` for the full plan.
 

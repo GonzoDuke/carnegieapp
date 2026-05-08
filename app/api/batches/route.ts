@@ -15,6 +15,7 @@ export async function GET() {
 
 const CreateBatchSchema = z.object({
   name: z.string().trim().min(1).max(200),
+  location: z.string().trim().max(200).optional().nullable(),
   notes: z.string().trim().max(2000).optional().nullable(),
 });
 
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     .insert(schema.batches)
     .values({
       name: parsed.data.name,
+      location: parsed.data.location || null,
       notes: parsed.data.notes || null,
     })
     .returning();
