@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
+import SearchBar from "@/components/SearchBar";
 
 // Reusable book-stack mark from public/icon.svg, inlined so it picks up
 // currentColor for theming. Sized small for header use.
@@ -51,6 +52,8 @@ export default function TopBar() {
             Carnegie
           </span>
         </Link>
+
+        <SearchBar />
 
         <nav className="flex items-center gap-1">
           <ThemeToggle />

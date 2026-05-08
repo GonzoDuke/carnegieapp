@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { asc, count, desc, eq, gt, sql } from "drizzle-orm";
-import { BookCheck, BookMarked, Check, Clock, Library, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  BookCheck,
+  BookMarked,
+  Check,
+  Clock,
+  Library,
+  Sparkles,
+} from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { getBudget } from "@/lib/vision-budget";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +35,7 @@ export default async function HomePage() {
     [{ n: weeklyBooks }],
     budget,
     pendingBooksRaw,
+    duplicateGroups,
   ] = await Promise.all([
       db
         .select({
@@ -102,6 +111,20 @@ export default async function HomePage() {
         .where(eq(schema.books.status, "pending_review"))
         .orderBy(asc(sql`COALESCE(${schema.books.confidence}, 1)`))
         .limit(12),
+      // Possible duplicates: count of distinct ISBNs that appear on more
+      // than one book row. Cheap aggregation; just a number for the alert.
+      db
+        .select({
+          canonical: sql<string>`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10})`,
+        })
+        .from(schema.books)
+        .where(
+          sql`${schema.books.isbn13} IS NOT NULL OR ${schema.books.isbn10} IS NOT NULL`,
+        )
+        .groupBy(
+          sql`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10})`,
+        )
+        .having(sql`COUNT(*) > 1`),
     ]);
 
   const pendingBooks: PendingBook[] = pendingBooksRaw.map((b) => ({
@@ -259,18 +282,42 @@ export default async function HomePage() {
             </section>
           </div>
 
-          <aside className="space-y-3 lg:col-span-1">
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-heading text-xl font-semibold tracking-tight">
-                Pending review
-              </h2>
-              {pendingBooks.length > 0 && (
-                <span className="text-muted-foreground text-xs">
-                  {pendingBooks.length} shown
-                </span>
-              )}
+          <aside className="space-y-6 lg:col-span-1">
+            {duplicateGroups.length > 0 && (
+              <Link href="/duplicates" className="block">
+                <Card className="border-destructive/30 bg-destructive/5 hover:border-destructive/50 transition-colors">
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <div className="bg-destructive/15 text-destructive flex size-9 shrink-0 items-center justify-center rounded-full">
+                      <AlertTriangle className="size-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground text-sm font-medium">
+                        {duplicateGroups.length} possible{" "}
+                        {duplicateGroups.length === 1 ? "duplicate" : "duplicates"}
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        Same ISBN appears in multiple batches — review and
+                        delete extras.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
+
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <h2 className="font-heading text-xl font-semibold tracking-tight">
+                  Pending review
+                </h2>
+                {pendingBooks.length > 0 && (
+                  <span className="text-muted-foreground text-xs">
+                    {pendingBooks.length} shown
+                  </span>
+                )}
+              </div>
+              <PendingReviewPanel books={pendingBooks} />
             </div>
-            <PendingReviewPanel books={pendingBooks} />
           </aside>
         </div>
       </main>
