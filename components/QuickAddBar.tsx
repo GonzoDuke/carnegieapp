@@ -43,7 +43,10 @@ export default function QuickAddBar({ batches }: Props) {
           action={`/api/batches/${batchId}/books`}
           className="flex flex-wrap items-end gap-2"
         >
-          <div className="grid min-w-0 flex-1 gap-1.5">
+          {/* ISBN — full width on phones (w-full forces a flex-wrap break)
+              so it isn't squeezed by the 176px batch select. On sm+ it
+              reverts to flex-1 and shares the row with batch + button. */}
+          <div className="grid w-full min-w-0 gap-1.5 sm:w-auto sm:flex-1">
             <Label htmlFor="quick-add-isbn" className="text-[11px] font-medium uppercase tracking-wider">
               Quick add ISBN
             </Label>
@@ -57,7 +60,8 @@ export default function QuickAddBar({ batches }: Props) {
               autoComplete="off"
             />
           </div>
-          <div className="grid gap-1.5">
+          {/* On phones, batch grows to fill the second row alongside Add. */}
+          <div className="grid min-w-0 flex-1 gap-1.5 sm:flex-none">
             <Label htmlFor="quick-add-batch" className="text-[11px] font-medium uppercase tracking-wider">
               Batch
             </Label>
@@ -65,7 +69,7 @@ export default function QuickAddBar({ batches }: Props) {
               id="quick-add-batch"
               value={batchId}
               onChange={(e) => setBatchId(e.target.value)}
-              className="border-input bg-background ring-offset-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-44 rounded-md border px-2 text-sm focus-visible:ring-3 focus-visible:outline-none"
+              className="border-input bg-background ring-offset-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-2 text-sm focus-visible:ring-3 focus-visible:outline-none sm:w-44"
             >
               {batches.map((b) => (
                 <option key={b.id} value={b.id}>
