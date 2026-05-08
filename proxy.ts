@@ -10,6 +10,10 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/manifest.webmanifest") return true;
   if (pathname === "/apple-icon") return true;
   if (pathname.startsWith("/icon")) return true;
+  // Brand asset used as a background image on the login page (and by
+  // every other surface once the user is signed in). Must load without
+  // an auth session so the login page renders correctly on first paint.
+  if (pathname === "/tartan.svg") return true;
   return false;
 }
 

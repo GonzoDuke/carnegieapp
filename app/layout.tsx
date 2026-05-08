@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Lora } from "next/font/google";
+import { Geist, Geist_Mono, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
@@ -14,8 +14,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const lora = Lora({
+// Heading face for the Carnegie identity. Cormorant Garamond is a
+// high-contrast Garalde with bookplate gravitas — pairs the Scottish
+// heritage register with the Carnegie library reference.
+const cormorant = Cormorant_Garamond({
   variable: "--font-serif",
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
@@ -36,7 +40,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f7f1e3" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a2030" },
+    { media: "(prefers-color-scheme: dark)", color: "#161e22" },
   ],
 };
 
@@ -49,7 +53,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${lora.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="bg-background text-foreground flex min-h-full flex-col font-sans">
         <ThemeProvider

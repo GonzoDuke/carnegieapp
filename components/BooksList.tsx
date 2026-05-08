@@ -103,10 +103,10 @@ export default function BooksList({ batchId, books }: Props) {
               className="scroll-mt-20"
             >
               <Card
-                className={`overflow-hidden transition-all ${
+                className={`overflow-hidden border-l-2 transition-all ${
                   isChecked
-                    ? "border-primary/60 bg-primary/5 shadow-sm"
-                    : "hover:border-primary/30 hover:shadow-sm"
+                    ? "border-primary/60 border-l-primary bg-primary/5 shadow-sm"
+                    : `${statusBorderClass(book.status)} hover:border-primary/30 hover:shadow-sm`
                 } ${isRejected ? "opacity-60" : ""}`}
               >
                 <div className="flex items-start gap-3 p-3 sm:p-4">
@@ -123,7 +123,7 @@ export default function BooksList({ batchId, books }: Props) {
                     isbn10={book.isbn10}
                     title={book.title}
                     size="sm"
-                    className="mt-0.5"
+                    className="ring-accent/30 mt-0.5 ring-1"
                   />
                   <details className="group min-w-0 flex-1">
                     <summary className="cursor-pointer list-none">
@@ -175,10 +175,10 @@ export default function BooksList({ batchId, books }: Props) {
                             <button
                               type="submit"
                               title={`Remove tag "${tag}"`}
-                              className="bg-secondary text-secondary-foreground hover:bg-destructive/10 hover:text-destructive group inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors"
+                              className="bg-primary/10 text-primary border-primary/15 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 group inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors"
                             >
                               <span>{tag}</span>
-                              <span className="text-muted-foreground group-hover:text-destructive">
+                              <span className="text-primary/60 group-hover:text-destructive">
                                 ×
                               </span>
                             </button>
@@ -418,6 +418,22 @@ function statusBadgeVariant(
       return "outline";
     default:
       return "secondary";
+  }
+}
+
+// Status-tinted left border on each book card — a quiet visual cue that
+// works alongside the status badge. Confirmed books get a gold (bookplate
+// brass) edge, pending get a navy hint, rejected stays muted.
+function statusBorderClass(
+  status: "pending_review" | "confirmed" | "rejected",
+): string {
+  switch (status) {
+    case "confirmed":
+      return "border-l-accent/70";
+    case "rejected":
+      return "border-l-muted-foreground/20";
+    default:
+      return "border-l-primary/40";
   }
 }
 

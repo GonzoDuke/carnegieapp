@@ -1,10 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
-  <g fill="#fafafa">
-    <rect x="120" y="120" width="60" height="272" rx="6"/>
-    <rect x="200" y="160" width="56" height="232" rx="6"/>
-    <rect x="276" y="100" width="52" height="292" rx="6" transform="rotate(6 302 246)"/>
-    <rect x="350" y="140" width="48" height="252" rx="6" transform="rotate(-4 374 266)"/>
+  <!-- Carnegie bookplate identity icon. Forest plate, tartan headband
+       across the top, gold inner frame, serif C centered. -->
+  <rect width="512" height="512" rx="80" fill="#1f3d2a"/>
+
+  <!-- Tartan headband across the top edge -->
+  <g>
+    <rect x="0" y="0" width="160" height="64" fill="#0f1c33"/>
+    <rect x="160" y="0" width="40" height="64" fill="#d4a64b"/>
+    <rect x="200" y="0" width="112" height="64" fill="#0f1c33"/>
+    <rect x="312" y="0" width="40" height="64" fill="#9c2c2c"/>
+    <rect x="352" y="0" width="160" height="64" fill="#0f1c33"/>
+    <rect x="0" y="62" width="512" height="2" fill="#f3ecd6" fill-opacity="0.45"/>
   </g>
-  <rect x="96" y="396" width="320" height="20" rx="4" fill="#fafafa"/>
+
+  <!-- Inner gold border, bookplate frame -->
+  <rect x="56" y="104" width="400" height="368" rx="40" fill="none" stroke="#d4a64b" stroke-width="6" stroke-opacity="0.9"/>
+
+  <!-- Serif C centered -->
+  <text x="256" y="372" text-anchor="middle"
+        font-family="Cormorant Garamond, EB Garamond, Georgia, serif"
+        font-size="320" font-weight="600" fill="#f3ecd6" letter-spacing="-12">C</text>
 </svg>

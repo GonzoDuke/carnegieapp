@@ -26,7 +26,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const BULK_CONFIRM_THRESHOLD = 0.85;
@@ -120,8 +119,22 @@ export default async function BatchDetailPage({
         )}
 
         {/* Hero header with batch identity + actions */}
-        <section className="from-primary/8 via-card to-card relative overflow-hidden rounded-2xl border bg-gradient-to-br shadow-sm">
-          <div className="from-primary/12 pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-gradient-to-br to-transparent blur-3xl" />
+        <section className="from-primary/10 via-card to-card relative overflow-hidden rounded-2xl border bg-gradient-to-br shadow-sm">
+          {/* Tartan corner ribbon — folds into the top-right corner of
+              the hero, like a bookplate ribbon. Subtle textile signature
+              that doesn't dominate the content. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute right-0 top-0 size-20 overflow-hidden"
+          >
+            <div
+              className="absolute -right-8 top-3 h-5 w-32 rotate-45 shadow-sm"
+              style={{
+                backgroundImage: "url(/tartan.svg)",
+                backgroundSize: "96px 96px",
+              }}
+            />
+          </div>
           <div className="relative space-y-5 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 space-y-1">
@@ -384,7 +397,17 @@ export default async function BatchDetailPage({
           )}
         </section>
 
-        <Separator />
+        {/* Tartan footer divider replaces the plain Separator — quiet
+            textile signature at the foot of the page. */}
+        <div
+          aria-hidden="true"
+          className="h-[2px] w-full"
+          style={{
+            backgroundImage: "url(/tartan.svg)",
+            backgroundSize: "96px 96px",
+            backgroundRepeat: "repeat-x",
+          }}
+        />
         <footer className="text-muted-foreground text-[11px]">
           Vision API: {budget.used} / {budget.limit} used today (UTC).
           {budget.exhausted && " Cap hit — photo extraction disabled until tomorrow."}
@@ -405,15 +428,15 @@ function StatChip({
 }) {
   const styles = {
     neutral: "bg-background/60 border",
-    confirmed: "bg-primary/10 text-primary border border-primary/20",
-    pending: "bg-amber-500/10 text-amber-700 border border-amber-500/20 dark:text-amber-300",
+    confirmed: "bg-primary/10 text-primary border border-primary/25",
+    pending: "bg-accent/15 text-accent-foreground border border-accent/30",
     rejected: "bg-muted text-muted-foreground border",
   } as const;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 backdrop-blur ${styles[tone]}`}
     >
-      <span className="font-heading text-sm font-semibold tabular-nums">
+      <span className="font-heading text-base font-semibold tabular-nums">
         {count}
       </span>
       <span className="text-[11px]">{label}</span>
@@ -423,7 +446,16 @@ function StatChip({
 
 function EmptyBooks({ hasAny }: { hasAny: boolean }) {
   return (
-    <Card className="border-dashed">
+    <Card className="relative overflow-hidden border-dashed">
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-1"
+        style={{
+          backgroundImage: "url(/tartan.svg)",
+          backgroundSize: "96px 96px",
+          backgroundRepeat: "repeat-x",
+        }}
+      />
       <CardContent className="flex flex-col items-center gap-3 px-6 py-12 text-center">
         <svg
           viewBox="0 0 100 100"
