@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -424,16 +423,7 @@ function StatChip({
 
 function EmptyBooks({ hasAny }: { hasAny: boolean }) {
   return (
-    <Card className="overflow-hidden border-dashed">
-      <div className="relative h-24 w-full">
-        <Image
-          src="/tartanImagePrototype.jpg"
-          alt=""
-          fill
-          sizes="(max-width: 640px) 100vw, 768px"
-          className="object-cover"
-        />
-      </div>
+    <Card className="border-dashed">
       <CardContent className="flex flex-col items-center gap-3 px-6 py-12 text-center">
         <svg
           viewBox="0 0 100 100"
