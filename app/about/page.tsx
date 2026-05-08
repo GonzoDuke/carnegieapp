@@ -74,8 +74,8 @@ export default function AboutPage() {
         {/* Epigraph — Andrew Carnegie's actual line about libraries.
             Sets the tone before any product copy: this is a tool in
             service of a real idea. */}
-        <blockquote className="border-primary/30 space-y-2 border-l-2 pl-5">
-          <p className="font-heading text-xl italic leading-relaxed text-foreground/90 sm:text-2xl">
+        <blockquote className="space-y-3 px-4 text-center">
+          <p className="font-heading text-balance text-xl italic leading-relaxed text-foreground/90 sm:text-2xl">
             “A library outranks any other one thing a community can do to
             benefit its people.”
           </p>
@@ -142,17 +142,6 @@ export default function AboutPage() {
           </Card>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
-            The name
-          </h2>
-          <p className="text-foreground text-base leading-relaxed">
-            After Andrew Carnegie, who funded more than 2,500 free public
-            libraries between 1883 and 1929. The tartan above is the Modern
-            Carnegie sett — the same pattern woven on the bookplate that
-            opens this page and hides on the chip in the top bar.
-          </p>
-        </section>
       </main>
     </>
   );
