@@ -236,7 +236,7 @@ export default async function HomePage() {
                       <Link href={`/batches/${b.id}`} className="group block">
                         <Card className="hover:border-primary/40 hover:-translate-y-0.5 overflow-hidden transition-all hover:shadow-md">
                           <CardContent className="flex items-center gap-4 p-4">
-                            <CoverStack books={b.sampleBooks} title={b.name} />
+                            <BatchThumb books={b.sampleBooks} title={b.name} />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-baseline justify-between gap-2">
                                 <div className="font-heading group-hover:text-primary truncate text-base font-semibold transition-colors">
@@ -354,38 +354,31 @@ type SampleBook = {
   title: string;
 };
 
-function CoverStack({ books, title }: { books: SampleBook[]; title: string }) {
-  // Three-deep visual stack, fanned slightly. Empty / missing slots show the
-  // same fallback as a single cover so batches with zero confirmed books
-  // still render cleanly.
-  const slots: (SampleBook | null)[] = [
-    books[0] ?? null,
-    books[1] ?? null,
-    books[2] ?? null,
-  ];
-
+// Single thumbnail per batch. When at least one confirmed book has a real
+// cover URL we show that cover (sm size — visible but not dominating). When
+// no covers exist we fall through to a clean brand-tinted chip with a small
+// Library icon, so the row never devolves into a stack of identical
+// gradient placeholders.
+function BatchThumb({ books, title }: { books: SampleBook[]; title: string }) {
+  const cover = books.find((b) => b.coverUrl);
+  if (cover) {
+    return (
+      <BookCover
+        coverUrl={cover.coverUrl}
+        isbn13={cover.isbn13}
+        isbn10={cover.isbn10}
+        title={cover.title || title}
+        size="sm"
+      />
+    );
+  }
   return (
-    <div className="relative h-20 w-16 shrink-0">
-      {slots.map((book, i) => (
-        <div
-          key={i}
-          className="absolute"
-          style={{
-            left: `${i * 6}px`,
-            top: `${i * 2}px`,
-            transform: `rotate(${(i - 1) * 3}deg)`,
-            zIndex: slots.length - i,
-          }}
-        >
-          <BookCover
-            coverUrl={book?.coverUrl}
-            isbn13={book?.isbn13}
-            isbn10={book?.isbn10}
-            title={book?.title ?? title}
-            size="sm"
-          />
-        </div>
-      ))}
+    <div
+      className="bg-primary/10 text-primary ring-primary/20 flex h-[4.5rem] w-12 shrink-0 items-center justify-center rounded-md ring-1"
+      aria-label={`${title} — no cover`}
+      title={title}
+    >
+      <Library className="size-5" />
     </div>
   );
 }
