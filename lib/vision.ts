@@ -11,9 +11,10 @@ const MODEL = "claude-sonnet-4-6";
 const SYSTEM_PROMPT = `You are extracting books from a photograph of physical books, typically a bookshelf, a stack, or several books laid out together.
 
 For every distinct book you can identify in the image, return a JSON entry with:
-- "title": string. The book's title as it appears on the spine. Clean up obvious OCR artifacts (broken letters, partial words). If a subtitle is visible, include it after a colon.
-- "author": string or null. The author(s) as printed on the spine. Use null if no author is visible. For multiple authors, join with " / ".
+- "title": string. The book's title as it appears on the spine. Clean up obvious OCR artifacts (broken letters, partial words). If a subtitle is visible, include it after a colon. Library shelf-classification stickers go in "spine_classification", never here.
+- "author": string or null. The author(s) as printed on the spine. Use null if no author is visible. For multiple authors, join with " / ". Library shelf-classification stickers go in "spine_classification", never here.
 - "visible_isbn": string or null. Only fill this if you can clearly read an ISBN number or scan a barcode in the image. Otherwise null.
+- "spine_classification": string or null. If a library shelving sticker is visible (e.g. "PR6045.O72 H37 1999", "813.54 STE", "FIC TOL"), put its raw text here verbatim. Otherwise null. Do NOT include this text in the title or author fields.
 - "confidence": number between 0.0 and 1.0. Your confidence that this is a real, distinct book and that the title is correct.
 
 Skip:
@@ -26,7 +27,7 @@ Output ONLY a single JSON object. No prose, no markdown fences, no commentary.
 Schema:
 {
   "books": [
-    { "title": "string", "author": "string|null", "visible_isbn": "string|null", "confidence": 0.0 }
+    { "title": "string", "author": "string|null", "visible_isbn": "string|null", "spine_classification": "string|null", "confidence": 0.0 }
   ]
 }`;
 
@@ -34,6 +35,7 @@ export type VisionBook = {
   title: string;
   author: string | null;
   visible_isbn: string | null;
+  spine_classification: string | null;
   confidence: number;
 };
 
@@ -128,8 +130,12 @@ function normalizeVisionBook(raw: unknown): VisionBook[] {
   if (!title) return [];
   const author = typeof r.author === "string" && r.author.trim() ? r.author.trim() : null;
   const isbn = typeof r.visible_isbn === "string" && r.visible_isbn.trim() ? r.visible_isbn.trim() : null;
+  const spine =
+    typeof r.spine_classification === "string" && r.spine_classification.trim()
+      ? r.spine_classification.trim()
+      : null;
   const confidence = typeof r.confidence === "number" && Number.isFinite(r.confidence)
     ? Math.min(1, Math.max(0, r.confidence))
     : 0;
-  return [{ title, author, visible_isbn: isbn, confidence }];
+  return [{ title, author, visible_isbn: isbn, spine_classification: spine, confidence }];
 }

@@ -5,6 +5,7 @@ import { getDb, schema } from "@/lib/db/client";
 import { extractBooksFromImage, type VisionBook } from "@/lib/vision";
 import { lookupByIsbn } from "@/lib/lookup";
 import { lookupByTitle } from "@/lib/lookup/title";
+import { extractLcc, stripSpineSticker } from "@/lib/lookup/classification";
 import { getBudget, incrementUsage } from "@/lib/vision-budget";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const inserted = await db
     .insert(schema.books)
     .values(
-      enriched.map(({ book, lookup }) => ({
+      enriched.map(({ book, lookup, visionLcc }) => ({
         batchId: id,
         source: "vision" as const,
         // Vision results always go through review — even high-confidence ones,
@@ -110,7 +111,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         pubDate: lookup?.pubDate ?? null,
         coverUrl: lookup?.coverUrl ?? null,
         tags: lookup?.subjects ?? [],
-        lcc: lookup?.lcc ?? null,
+        // API-returned LCC always wins over a sticker-derived one — the
+        // provider has the canonical edition data. Sticker is the fallback.
+        lcc: lookup?.lcc ?? visionLcc ?? null,
         description: lookup?.description ?? null,
         confidence: book.confidence,
         rawVision: { vision: book, lookupSource: lookup?.source ?? null },
@@ -130,14 +133,27 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 }
 
 async function enrichDetected(book: VisionBook) {
+  // Belt-and-suspenders: the prompt tells the model to keep library shelf
+  // stickers out of title/author and put them in spine_classification, but
+  // strip any residue that slipped through before we hand text to the lookup
+  // chain — a polluted title is a guaranteed lookup miss.
+  const cleanedBook: VisionBook = {
+    ...book,
+    title: stripSpineSticker(book.title) || book.title,
+    author: book.author ? stripSpineSticker(book.author) || book.author : null,
+  };
+  const visionLcc = extractLcc(book.spine_classification);
+
   // If the model spotted an ISBN, use the existing chain — much higher quality.
-  if (book.visible_isbn) {
-    const outcome = await lookupByIsbn(book.visible_isbn);
-    if (outcome.result) return { book, lookup: outcome.result };
+  if (cleanedBook.visible_isbn) {
+    const outcome = await lookupByIsbn(cleanedBook.visible_isbn);
+    if (outcome.result) {
+      return { book: cleanedBook, lookup: outcome.result, visionLcc };
+    }
   }
   // Otherwise try a title+author search against Google Books.
-  const fromTitle = await lookupByTitle(book.title, book.author);
-  return { book, lookup: fromTitle };
+  const fromTitle = await lookupByTitle(cleanedBook.title, cleanedBook.author);
+  return { book: cleanedBook, lookup: fromTitle, visionLcc };
 }
 
 function pickMediaType(
