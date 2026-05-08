@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Zippy Planet",
-    short_name: "Zippy",
+    name: "Carnegie",
+    short_name: "Carnegie",
     description:
       "Catalog physical books fast — photograph shelves, scan barcodes, export to LibraryThing.",
     start_url: "/",

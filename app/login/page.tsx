@@ -32,7 +32,7 @@ export default async function LoginPage({
           <div className="bg-primary/10 text-primary mx-auto flex size-12 items-center justify-center rounded-full">
             <Library className="size-6" />
           </div>
-          <CardTitle className="mt-2 text-2xl tracking-tight">Zippy Planet</CardTitle>
+          <CardTitle className="mt-2 text-2xl tracking-tight">Carnegie</CardTitle>
           <CardDescription>Enter your passcode to continue.</CardDescription>
         </CardHeader>
 

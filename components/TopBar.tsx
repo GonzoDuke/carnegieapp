@@ -48,7 +48,7 @@ export default function TopBar() {
             <BrandMark className="size-5" />
           </span>
           <span className="font-heading text-lg font-semibold tracking-tight">
-            Zippy Planet
+            Carnegie
           </span>
         </Link>
 

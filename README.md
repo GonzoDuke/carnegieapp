@@ -1,4 +1,4 @@
-# Zippy Planet
+# Carnegie
 
 Catalog physical books fast: photograph shelves → AI extracts spines → barcode-scan the rest → export a LibraryThing-compatible CSV.
 

@@ -20,12 +20,12 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "Zippy Planet",
+  title: "Carnegie",
   description: "Catalog physical books fast — photo + barcode → LibraryThing CSV.",
-  applicationName: "Zippy Planet",
+  applicationName: "Carnegie",
   appleWebApp: {
     capable: true,
-    title: "Zippy",
+    title: "Carnegie",
     statusBarStyle: "black-translucent",
   },
 };

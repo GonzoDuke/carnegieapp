@@ -21,7 +21,7 @@ export default function AppleIcon() {
           letterSpacing: -4,
         }}
       >
-        zp
+        C
         <div
           style={{
             marginTop: 8,
@@ -32,7 +32,7 @@ export default function AppleIcon() {
             textTransform: "uppercase",
           }}
         >
-          Zippy Planet
+          Carnegie
         </div>
       </div>
     ),

@@ -1,4 +1,4 @@
-# Cataloging your library with Zippy Planet
+# Cataloging your library with Carnegie
 
 This guide walks through the most efficient way to catalog a personal library
 end-to-end — from a box of books on the floor to a clean CSV imported into
