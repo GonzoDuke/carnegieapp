@@ -16,6 +16,8 @@ const ActionSchema = z.object({
   isbn: z.string().trim().max(20).optional().nullable(),
   publisher: z.string().trim().max(200).optional().nullable(),
   pubDate: z.string().trim().max(100).optional().nullable(),
+  // "rejected" is accepted purely so legacy clients still work — it's
+  // treated as a delete below. New code should send action=delete instead.
   status: z
     .enum(["pending_review", "confirmed", "rejected"])
     .optional(),
@@ -43,7 +45,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const db = getDb();
 
-  if (action === "delete") {
+  // Reject = delete. If a save action arrives with status=rejected, treat it
+  // as a delete so we never persist that status.
+  const isDelete = action === "delete" || parsed.data.status === "rejected";
+
+  if (isDelete) {
     const [deleted] = await db
       .delete(schema.books)
       .where(eq(schema.books.id, bookId))

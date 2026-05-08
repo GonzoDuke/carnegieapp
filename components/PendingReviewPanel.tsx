@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, X } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,13 +41,16 @@ export default function PendingReviewPanel({ books }: Props) {
     );
   }
 
-  async function decide(book: PendingBook, status: "confirmed" | "rejected") {
+  async function decide(book: PendingBook, action: "confirm" | "delete") {
     if (busyIds.has(book.id)) return;
+    if (action === "delete" && !window.confirm(`Delete "${book.title}"? This cannot be undone.`)) {
+      return;
+    }
     setBusyIds((prev) => new Set(prev).add(book.id));
     try {
       const form = new FormData();
-      form.append("_action", "save");
-      form.append("status", status);
+      form.append("_action", action === "delete" ? "delete" : "save");
+      if (action === "confirm") form.append("status", "confirmed");
       const res = await fetch(
         `/api/batches/${book.batchId}/books/${book.id}`,
         { method: "POST", body: form, redirect: "manual" },
@@ -59,7 +62,7 @@ export default function PendingReviewPanel({ books }: Props) {
         throw new Error(`Failed (${res.status})`);
       }
       toast.success(
-        status === "confirmed" ? `Confirmed: ${book.title}` : `Rejected: ${book.title}`,
+        action === "confirm" ? `Confirmed: ${book.title}` : `Deleted: ${book.title}`,
       );
       router.refresh();
     } catch (err) {
@@ -117,7 +120,7 @@ export default function PendingReviewPanel({ books }: Props) {
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => decide(book, "confirmed")}
+                    onClick={() => decide(book, "confirm")}
                     disabled={busy}
                     title="Confirm"
                     className="text-muted-foreground hover:bg-primary/10 hover:text-primary"
@@ -128,12 +131,12 @@ export default function PendingReviewPanel({ books }: Props) {
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => decide(book, "rejected")}
+                    onClick={() => decide(book, "delete")}
                     disabled={busy}
-                    title="Reject"
+                    title="Delete"
                     className="text-muted-foreground hover:text-destructive"
                   >
-                    <X className="size-4" />
+                    <Trash2 className="size-4" />
                   </Button>
                 </div>
               </CardContent>

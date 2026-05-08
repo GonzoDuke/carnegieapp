@@ -62,8 +62,14 @@ export default function BooksList({ batchId, books }: Props) {
     setSelected(new Set());
   }
 
-  async function bulkSetStatus(status: "confirmed" | "rejected") {
+  async function bulkAction(action: "confirm" | "delete") {
     if (selectionCount === 0 || bulkBusy) return;
+    if (action === "delete") {
+      const ok = window.confirm(
+        `Delete ${selectionCount} ${selectionCount === 1 ? "book" : "books"}? This cannot be undone.`,
+      );
+      if (!ok) return;
+    }
     setBulkBusy(true);
     try {
       const res = await fetch(`/api/batches/${batchId}/books/bulk-status`, {
@@ -71,14 +77,14 @@ export default function BooksList({ batchId, books }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookIds: liveSelection,
-          status,
+          action,
         }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(json?.error || `Failed (${res.status})`);
       }
-      const verb = status === "confirmed" ? "Confirmed" : "Rejected";
+      const verb = action === "confirm" ? "Confirmed" : "Deleted";
       toast.success(`${verb} ${json?.updated ?? 0} books`);
       clearSelection();
       router.refresh();
@@ -93,7 +99,6 @@ export default function BooksList({ batchId, books }: Props) {
     <>
       <ul className="space-y-2">
         {books.map((book) => {
-          const isRejected = book.status === "rejected";
           const dot = confidenceDot(book.source, book.confidence);
           const isChecked = selected.has(book.id);
           return (
@@ -107,7 +112,7 @@ export default function BooksList({ batchId, books }: Props) {
                   isChecked
                     ? "border-primary/60 bg-primary/5 shadow-sm"
                     : "hover:border-primary/30 hover:shadow-sm"
-                } ${isRejected ? "opacity-60" : ""}`}
+                }`}
               >
                 <div className="flex items-start gap-3 p-3 sm:p-4">
                   <label className="mt-0.5 flex shrink-0 cursor-pointer items-center">
@@ -290,15 +295,6 @@ export default function BooksList({ batchId, books }: Props) {
                         >
                           Confirm
                         </Button>
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
-                          name="status"
-                          value="rejected"
-                        >
-                          Reject
-                        </Button>
                       </div>
                     </form>
                   </details>
@@ -372,7 +368,7 @@ export default function BooksList({ batchId, books }: Props) {
               <Button
                 type="button"
                 size="sm"
-                onClick={() => bulkSetStatus("confirmed")}
+                onClick={() => bulkAction("confirm")}
                 disabled={bulkBusy}
               >
                 <CheckCheck className="size-4" />
@@ -382,12 +378,12 @@ export default function BooksList({ batchId, books }: Props) {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => bulkSetStatus("rejected")}
+                onClick={() => bulkAction("delete")}
                 disabled={bulkBusy}
                 className="text-destructive hover:bg-destructive/10 hover:text-destructive"
               >
-                <X className="size-4" />
-                Reject
+                <Trash2 className="size-4" />
+                Delete
               </Button>
               <Button
                 type="button"

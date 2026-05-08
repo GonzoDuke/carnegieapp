@@ -19,7 +19,6 @@ const STATUS_OPTIONS = [
   { value: "all", label: "All" },
   { value: "confirmed", label: "Confirmed" },
   { value: "pending_review", label: "Pending" },
-  { value: "rejected", label: "Rejected" },
 ];
 
 const SOURCE_OPTIONS = [

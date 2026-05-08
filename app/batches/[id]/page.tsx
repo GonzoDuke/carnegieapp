@@ -35,7 +35,6 @@ export const dynamic = "force-dynamic";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<{
-  show?: string;
   relookup?: string;
   manual?: string;
   source?: string;
@@ -49,8 +48,7 @@ export default async function BatchDetailPage({
   searchParams: SearchParams;
 }) {
   const { id } = await params;
-  const { show, relookup, manual, source } = await searchParams;
-  const showRejected = show === "all";
+  const { relookup, manual, source } = await searchParams;
 
   const db = getDb();
   const [batch] = await db
@@ -67,10 +65,6 @@ export default async function BatchDetailPage({
 
   const confirmedCount = books.filter((b) => b.status === "confirmed").length;
   const pendingCount = books.filter((b) => b.status === "pending_review").length;
-  const rejectedCount = books.filter((b) => b.status === "rejected").length;
-  const visibleBooks = showRejected
-    ? books
-    : books.filter((b) => b.status !== "rejected");
   const bulkEligibleCount = books.filter(
     (b) =>
       b.status === "pending_review" &&
@@ -163,13 +157,6 @@ export default async function BatchDetailPage({
                 tone="confirmed"
               />
               <StatChip count={pendingCount} label="pending" tone="pending" />
-              {rejectedCount > 0 && (
-                <StatChip
-                  count={rejectedCount}
-                  label="rejected"
-                  tone="rejected"
-                />
-              )}
             </div>
 
             {batch.exportedAt && (
@@ -355,32 +342,15 @@ export default async function BatchDetailPage({
             <h2 className="font-heading text-lg font-semibold tracking-tight">
               Books
               <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                ({visibleBooks.length})
+                ({books.length})
               </span>
             </h2>
-            {rejectedCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                render={
-                  <Link
-                    href={
-                      showRejected
-                        ? `/batches/${batch.id}`
-                        : `/batches/${batch.id}?show=all`
-                    }
-                  />
-                }
-              >
-                {showRejected ? "Hide rejected" : `Show ${rejectedCount} rejected`}
-              </Button>
-            )}
           </div>
 
-          {visibleBooks.length === 0 ? (
-            <EmptyBooks hasAny={books.length > 0} />
+          {books.length === 0 ? (
+            <EmptyBooks />
           ) : (
-            <BooksList batchId={batch.id} books={visibleBooks} />
+            <BooksList batchId={batch.id} books={books} />
           )}
         </section>
 
@@ -401,13 +371,12 @@ function StatChip({
 }: {
   count: number;
   label: string;
-  tone?: "neutral" | "confirmed" | "pending" | "rejected";
+  tone?: "neutral" | "confirmed" | "pending";
 }) {
   const styles = {
     neutral: "bg-background/60 border",
     confirmed: "bg-primary/10 text-primary border border-primary/20",
     pending: "bg-amber-500/10 text-amber-700 border border-amber-500/20 dark:text-amber-300",
-    rejected: "bg-muted text-muted-foreground border",
   } as const;
   return (
     <span
@@ -421,7 +390,7 @@ function StatChip({
   );
 }
 
-function EmptyBooks({ hasAny }: { hasAny: boolean }) {
+function EmptyBooks() {
   return (
     <Card className="border-dashed">
       <CardContent className="flex flex-col items-center gap-3 px-6 py-12 text-center">
@@ -442,9 +411,7 @@ function EmptyBooks({ hasAny }: { hasAny: boolean }) {
           <line x1="15" y1="80" x2="85" y2="80" />
         </svg>
         <p className="text-muted-foreground max-w-xs text-sm">
-          {hasAny
-            ? "All books in this batch are rejected. Click “Show rejected” to see them."
-            : "No books yet. Use Photo, Scan, or Manual above to add some."}
+          No books yet. Use Photo, Scan, or Manual above to add some.
         </p>
       </CardContent>
     </Card>
