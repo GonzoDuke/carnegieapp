@@ -26,6 +26,11 @@ type Props = {
   books: PendingBook[];
 };
 
+// Workbench-board layout: 2-up grid of substantial cards. Each card carries
+// a medium-sized cover, the title + authors, batch + source + confidence
+// metadata, and full-width Confirm / Delete buttons. Pending review is the
+// primary work surface on the home page, so the cards are sized to feel
+// like things you act on, not list rows you scan.
 export default function PendingReviewPanel({ books }: Props) {
   const router = useRouter();
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
@@ -33,9 +38,9 @@ export default function PendingReviewPanel({ books }: Props) {
   if (books.length === 0) {
     return (
       <Card>
-        <CardContent className="text-muted-foreground py-8 text-center text-sm">
-          <Check className="text-primary mx-auto mb-2 size-5" />
-          All caught up. No pending books across your batches.
+        <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-base">
+          <Check className="text-primary size-6" />
+          <span>All caught up. No pending books across your batches.</span>
         </CardContent>
       </Card>
     );
@@ -77,66 +82,76 @@ export default function PendingReviewPanel({ books }: Props) {
   }
 
   return (
-    <ul className="space-y-2">
+    <ul className="grid gap-3 sm:grid-cols-2">
       {books.map((book) => {
         const busy = busyIds.has(book.id);
         const dot = confidenceDot(book.source, book.confidence);
         return (
           <li key={book.id}>
             <Card className="overflow-hidden">
-              <CardContent className="flex items-start gap-3 p-3">
-                <BookCover
-                  coverUrl={book.coverUrl}
-                  isbn13={book.isbn13}
-                  isbn10={book.isbn10}
-                  title={book.title}
-                  size="sm"
-                  className="ring-accent/20 mt-0.5 ring-1"
-                />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    {dot && (
-                      <span
-                        className={`inline-block size-2 shrink-0 rounded-full ${dot}`}
-                        aria-label={`confidence ${book.confidence?.toFixed(2)}`}
-                      />
-                    )}
-                    <p className="truncate text-sm font-medium">{book.title}</p>
+              <CardContent className="flex flex-col gap-4 p-4">
+                <div className="flex items-start gap-4">
+                  <BookCover
+                    coverUrl={book.coverUrl}
+                    isbn13={book.isbn13}
+                    isbn10={book.isbn10}
+                    title={book.title}
+                    size="md"
+                    className="ring-accent/20 ring-1"
+                  />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="font-heading line-clamp-2 text-lg font-semibold leading-snug">
+                      {book.title}
+                    </p>
+                    <p className="text-muted-foreground line-clamp-2 text-sm">
+                      {book.authors.length > 0
+                        ? book.authors.join(" / ")
+                        : "Unknown author"}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs">
+                      <Link
+                        href={`/batches/${book.batchId}#book-${book.id}`}
+                        className="text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                      >
+                        In: {book.batchName}
+                      </Link>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-muted-foreground">{book.source}</span>
+                      {dot && (
+                        <span className="inline-flex items-center gap-1">
+                          <span
+                            className={`inline-block size-2 rounded-full ${dot}`}
+                            aria-hidden="true"
+                          />
+                          <span className="text-muted-foreground tabular-nums">
+                            {book.confidence?.toFixed(2)}
+                          </span>
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-muted-foreground truncate text-xs">
-                    {book.authors.length > 0
-                      ? book.authors.join(" / ")
-                      : "Unknown author"}
-                  </p>
-                  <Link
-                    href={`/batches/${book.batchId}#book-${book.id}`}
-                    className="text-muted-foreground hover:text-foreground inline-block text-[11px] underline-offset-2 hover:underline"
-                  >
-                    {book.batchName}
-                  </Link>
                 </div>
-                <div className="flex shrink-0 flex-col gap-1">
+                <div className="flex gap-2">
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon-sm"
+                    size="sm"
                     onClick={() => decide(book, "confirm")}
                     disabled={busy}
-                    title="Confirm"
-                    className="text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                    className="flex-1"
                   >
                     <Check className="size-4" />
+                    Confirm
                   </Button>
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon-sm"
+                    variant="outline"
+                    size="sm"
                     onClick={() => decide(book, "delete")}
                     disabled={busy}
-                    title="Delete"
-                    className="text-muted-foreground hover:text-destructive"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive flex-1"
                   >
                     <Trash2 className="size-4" />
+                    Delete
                   </Button>
                 </div>
               </CardContent>
