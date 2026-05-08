@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Library } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -27,17 +28,36 @@ export default async function LoginPage({
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="items-center text-center">
+      <Card className="relative w-full max-w-sm overflow-hidden p-0">
+        {/* Tartan banner — substantial enough that the woven sett actually
+            reads as fabric (not as a thin strip of unidentifiable color).
+            object-cover + cropped height keeps a clean, intentional band. */}
+        <div className="relative h-32 w-full">
+          <Image
+            src="/tartanImagePrototype.jpg"
+            alt=""
+            fill
+            priority
+            sizes="(max-width: 640px) 100vw, 384px"
+            className="object-cover"
+          />
+        </div>
+
+        <CardHeader className="items-center px-6 pt-6 text-center">
           <div className="bg-primary/10 text-primary mx-auto flex size-12 items-center justify-center rounded-full">
             <Library className="size-6" />
           </div>
           <CardTitle className="mt-2 text-2xl tracking-tight">Carnegie</CardTitle>
-          <CardDescription>Enter your passcode to continue.</CardDescription>
+          <p className="text-muted-foreground mt-0.5 text-[10px] font-medium uppercase tracking-[0.25em]">
+            Ex Libris
+          </p>
+          <CardDescription className="mt-2">
+            Enter your passcode to continue.
+          </CardDescription>
         </CardHeader>
 
         <form method="POST" action="/api/login">
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-6">
             {setup && (
               <Alert variant="destructive">
                 <AlertDescription>
@@ -66,7 +86,7 @@ export default async function LoginPage({
             </div>
           </CardContent>
 
-          <CardFooter>
+          <CardFooter className="px-6 pb-6">
             <Button type="submit" className="w-full">
               Sign in
             </Button>

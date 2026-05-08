@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { count, desc, eq, gt, sql } from "drizzle-orm";
 import { BookCheck, BookMarked, Check, Clock, Library, Sparkles } from "lucide-react";
@@ -75,10 +76,20 @@ export default async function HomePage() {
       <TopBar />
 
       <main className="mx-auto w-full max-w-5xl space-y-10 px-4 py-8 sm:py-10">
-        {/* Hero */}
-        <section className="from-primary/8 via-background to-background relative overflow-hidden rounded-2xl border bg-gradient-to-br p-6 sm:p-8">
-          <div className="from-primary/15 pointer-events-none absolute -right-20 -top-20 size-64 rounded-full bg-gradient-to-br to-transparent blur-3xl" />
-          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        {/* Hero — same banner pattern as login: substantial tartan band
+            at the top, content below on the existing parchment surface. */}
+        <section className="bg-card relative overflow-hidden rounded-2xl border">
+          <div className="relative h-32 w-full sm:h-36">
+            <Image
+              src="/tartanImagePrototype.jpg"
+              alt=""
+              fill
+              priority
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1024px"
+              className="object-cover"
+            />
+          </div>
+          <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
             <div className="space-y-2">
               <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
                 <Sparkles className="size-3" />
@@ -256,8 +267,17 @@ function CoverStack({ books, title }: { books: SampleBook[]; title: string }) {
 
 function EmptyBatches() {
   return (
-    <Card className="border-dashed">
-      <CardContent className="flex flex-col items-center gap-4 px-6 py-14 text-center">
+    <Card className="overflow-hidden border-dashed">
+      <div className="relative h-24 w-full">
+        <Image
+          src="/tartanImagePrototype.jpg"
+          alt=""
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1024px"
+          className="object-cover"
+        />
+      </div>
+      <CardContent className="flex flex-col items-center gap-4 px-6 py-12 text-center">
         <ShelfIllustration />
         <div className="space-y-1">
           <p className="font-heading text-base font-semibold">Your shelves are empty</p>

@@ -10,6 +10,8 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/manifest.webmanifest") return true;
   if (pathname === "/apple-icon") return true;
   if (pathname.startsWith("/icon")) return true;
+  // Brand asset shown on the login page; must load before auth.
+  if (pathname === "/tartanImagePrototype.jpg") return true;
   return false;
 }
 
