@@ -128,32 +128,34 @@ export default async function HomePage() {
     <>
       <TopBar />
 
-      <main className="mx-auto w-full max-w-7xl space-y-8 px-4 py-8 sm:py-10">
-        {/* Hero */}
-        <section className="from-primary/8 via-background to-background relative overflow-hidden rounded-2xl border bg-gradient-to-br p-6 sm:p-8">
-          <div className="from-primary/15 pointer-events-none absolute -right-20 -top-20 size-64 rounded-full bg-gradient-to-br to-transparent blur-3xl" />
-          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-2">
-              <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
-                <Sparkles className="size-3" />
-                Your library
-              </div>
-              <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-                Welcome back
-              </h1>
-              <p className="text-muted-foreground max-w-md text-sm">
-                Photograph shelves, scan barcodes, then export everything to
-                LibraryThing in one tidy CSV.
-              </p>
-            </div>
-            <CreateBatchDialog />
-          </div>
-        </section>
-
+      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
         {/* On wide screens: main content (2/3) + pending-review sidebar (1/3).
-            On phone/tablet: stacks single-column. */}
+            Hero lives inside the main column so it aligns with the rest
+            of the homepage flow rather than breaking out across both
+            columns. On phone/tablet: stacks single-column. */}
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="min-w-0 space-y-8 lg:col-span-2">
+            {/* Hero */}
+            <section className="from-primary/8 via-background to-background relative overflow-hidden rounded-2xl border bg-gradient-to-br p-6 sm:p-8">
+              <div className="from-primary/15 pointer-events-none absolute -right-20 -top-20 size-64 rounded-full bg-gradient-to-br to-transparent blur-3xl" />
+              <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-2">
+                  <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
+                    <Sparkles className="size-3" />
+                    Your library
+                  </div>
+                  <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+                    Welcome back
+                  </h1>
+                  <p className="text-muted-foreground max-w-md text-sm">
+                    Photograph shelves, scan barcodes, then export everything to
+                    LibraryThing in one tidy CSV.
+                  </p>
+                </div>
+                <CreateBatchDialog />
+              </div>
+            </section>
+
             {/* Quick-add ISBN — single-keystroke entry into a chosen batch */}
             <section className="space-y-2">
               <div className="flex items-baseline justify-between">
