@@ -59,9 +59,6 @@ export default async function LoginPage({
             <Library className="size-6" />
           </div>
           <CardTitle className="mt-2 text-2xl tracking-tight">Carnegie</CardTitle>
-          <p className="text-muted-foreground mt-0.5 text-[10px] font-medium uppercase tracking-[0.25em]">
-            Ex Libris
-          </p>
           <CardDescription className="mt-2">
             Enter your passcode to continue.
           </CardDescription>
