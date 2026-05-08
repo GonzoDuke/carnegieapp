@@ -133,5 +133,23 @@ function enrichResult(
     }
   }
 
+  // Cover: if the winner picked the title-and-author fight but didn't ship a
+  // cover image, borrow one. Google Books usually has the sharpest thumbnails;
+  // OL is hit-or-miss; ISBNdb varies. Without this, ISBNdb-won books with no
+  // image leave coverUrl null even when GB or OL had a perfectly good cover.
+  if (!next.coverUrl) {
+    const preferenceOrder: LookupSource[] = ["googlebooks", "openlibrary", "isbndb"];
+    for (const src of preferenceOrder) {
+      const found = attempts
+        .filter((a) => a.source === src)
+        .map((a) => a.result?.coverUrl)
+        .find((c) => !!c);
+      if (found) {
+        next.coverUrl = found;
+        break;
+      }
+    }
+  }
+
   return next;
 }

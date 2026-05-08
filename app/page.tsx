@@ -354,20 +354,24 @@ type SampleBook = {
   title: string;
 };
 
-// Single thumbnail per batch. When at least one confirmed book has a real
-// cover URL we show that cover (sm size — visible but not dominating). When
-// no covers exist we fall through to a clean brand-tinted chip with a small
-// Library icon, so the row never devolves into a stack of identical
-// gradient placeholders.
+// Single thumbnail per batch. Preference: a book with a stored cover URL
+// (best fidelity), then any book with an ISBN (BookCover will fetch from
+// covers.openlibrary.org as a fallback), then a clean brand-tinted chip
+// with a small Library icon. The chip only shows when no sample book has
+// any cover signal at all — keeps the row from devolving into a stack of
+// identical gradient placeholders.
 function BatchThumb({ books, title }: { books: SampleBook[]; title: string }) {
-  const cover = books.find((b) => b.coverUrl);
-  if (cover) {
+  const candidate =
+    books.find((b) => b.coverUrl) ??
+    books.find((b) => b.isbn13 || b.isbn10) ??
+    null;
+  if (candidate) {
     return (
       <BookCover
-        coverUrl={cover.coverUrl}
-        isbn13={cover.isbn13}
-        isbn10={cover.isbn10}
-        title={cover.title || title}
+        coverUrl={candidate.coverUrl}
+        isbn13={candidate.isbn13}
+        isbn10={candidate.isbn10}
+        title={candidate.title || title}
         size="sm"
       />
     );

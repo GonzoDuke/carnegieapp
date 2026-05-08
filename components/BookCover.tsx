@@ -99,6 +99,12 @@ export function BookCover({
       src={url}
       alt={title}
       loading="lazy"
+      // Some cover hosts (notably images.isbndb.com) hotlink-block by Referer
+      // and return a 200 OK with an empty body — which fires onError and
+      // dumps us into the gradient placeholder. Stripping the Referer fixes
+      // the block without changing what we store. OL / Google Books cover
+      // hosts don't care about Referer, so this is a free win.
+      referrerPolicy="no-referrer"
       onError={() => setIdx((i) => i + 1)}
       className={`${sizeClass} bg-muted shrink-0 object-cover shadow-sm ring-1 ring-black/5 ${className ?? ""}`}
     />
