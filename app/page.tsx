@@ -1,12 +1,6 @@
 import Link from "next/link";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  ChevronRight,
-  Sparkles,
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Sparkles } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
 import { getBudget } from "@/lib/vision-budget";
@@ -323,41 +317,20 @@ export default async function HomePage() {
           </section>
         </div>
 
-        {sentBatches.length > 0 && (
-          <details className="group border-t pt-6">
-            <summary className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer list-none items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] transition-colors">
-              <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
-              Sent to LibraryThing · {sentBatches.length}
-            </summary>
-            <ul className="mt-4 grid gap-2 text-base sm:grid-cols-2">
-              {sentBatches.map((b) => (
-                <li key={b.id}>
-                  <Link
-                    href={`/batches/${b.id}`}
-                    className="hover:bg-muted/50 group/item flex items-center gap-2 rounded-md px-2 py-2 transition-colors"
-                  >
-                    <Check className="text-primary size-4 shrink-0" />
-                    <span className="text-foreground truncate font-medium">
-                      {b.name}
-                    </span>
-                    <span className="text-muted-foreground tabular-nums">
-                      ({b.bookCount})
-                    </span>
-                    <span className="text-muted-foreground ml-auto text-sm">
-                      {b.exportedAt!.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-
-        <footer className="text-muted-foreground border-t pt-6 text-xs">
-          Vision API: {budget.used} / {budget.limit} used today (UTC).
+        <footer className="text-muted-foreground space-y-1.5 border-t pt-6 text-xs">
+          {sentBatches.length > 0 && (
+            <Link
+              href="/archive"
+              className="hover:text-foreground group inline-flex items-center gap-1.5 transition-colors"
+            >
+              View archive · {sentBatches.length}{" "}
+              {sentBatches.length === 1 ? "batch" : "batches"} sent
+              <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          )}
+          <p>
+            Vision API: {budget.used} / {budget.limit} used today (UTC).
+          </p>
         </footer>
       </main>
     </>
