@@ -6,23 +6,30 @@ import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
 import { processUserIsbn } from "@/lib/lookup/isbn";
 import { lookupByIsbn } from "@/lib/lookup";
+import { lookupByLccn, normalizeLccn } from "@/lib/lookup/lccn";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// Either a title or an ISBN must be present. With an ISBN we can fill in the
-// rest via lookup; with a title the user is creating a stub manually.
+// At least one of {title, isbn, lccn} must be present. ISBN runs the full
+// three-provider lookup chain; LCCN is OL-only (the only provider that
+// indexes by it) and used as a fallback for older books without ISBNs.
+// Title alone makes a manual stub.
 const CreateBookSchema = z
   .object({
     title: z.string().trim().max(1000).optional().nullable(),
     authors: z.string().trim().max(1000).optional().nullable(),
     isbn: z.string().trim().max(20).optional().nullable(),
+    lccn: z.string().trim().max(30).optional().nullable(),
     publisher: z.string().trim().max(200).optional().nullable(),
     pubDate: z.string().trim().max(100).optional().nullable(),
   })
-  .refine((data) => Boolean(data.title?.trim() || data.isbn?.trim()), {
-    message: "Provide either a title or an ISBN.",
-    path: ["title"],
-  });
+  .refine(
+    (data) => Boolean(data.title?.trim() || data.isbn?.trim() || data.lccn?.trim()),
+    {
+      message: "Provide a title, ISBN, or LCCN.",
+      path: ["title"],
+    },
+  );
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const userId = await requireUserId();
@@ -57,9 +64,15 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         .filter(Boolean)
     : [];
 
-  // Run the lookup chain whenever an ISBN is present. The user's typed
-  // values still take precedence below — lookup only fills in gaps.
-  const lookup = data.isbn ? (await lookupByIsbn(data.isbn)).result : null;
+  // Lookup precedence: ISBN (full three-provider chain) → LCCN
+  // (OL-only). The first one that returns a result wins; we don't merge
+  // both because the user only filled one input in the typical case.
+  let lookup = data.isbn ? (await lookupByIsbn(data.isbn)).result : null;
+  let lookupKind: "isbn" | "lccn" | null = lookup ? "isbn" : null;
+  if (!lookup && data.lccn?.trim()) {
+    lookup = await lookupByLccn(data.lccn);
+    if (lookup) lookupKind = "lccn";
+  }
 
   const { isbn13: typedIsbn13, isbn10: typedIsbn10 } = processUserIsbn(data.isbn);
 
@@ -67,7 +80,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const finalTitle =
     userTitle ||
     lookup?.title ||
-    (data.isbn ? `Untitled (ISBN ${data.isbn.trim()})` : "");
+    (data.isbn
+      ? `Untitled (ISBN ${data.isbn.trim()})`
+      : data.lccn
+        ? `Untitled (LCCN ${normalizeLccn(data.lccn)})`
+        : "");
   const finalAuthors =
     userAuthorList.length > 0 ? userAuthorList : lookup?.authors ?? [];
   const finalPublisher = data.publisher?.trim() || lookup?.publisher || null;
@@ -79,14 +96,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const finalLcc = lookup?.lcc ?? null;
   const finalDescription = lookup?.description ?? null;
 
-  // If user typed only an ISBN and lookup missed, the row is a stub —
-  // leave it pending review with a comment so it stands out.
-  const isbnOnlyMissed = data.isbn && !lookup && !userTitle;
-  const status: "confirmed" | "pending_review" = isbnOnlyMissed
+  // Lookup-missed stubs go to pending review with a note pointing at the
+  // identifier we couldn't resolve, so they stand out from clean inserts.
+  const lookupMissed =
+    !lookup && !userTitle && (Boolean(data.isbn) || Boolean(data.lccn));
+  const status: "confirmed" | "pending_review" = lookupMissed
     ? "pending_review"
     : "confirmed";
-  const comments = isbnOnlyMissed
-    ? `Manual entry. ISBN ${data.isbn?.trim()} not found in lookup chain.`
+  const comments = lookupMissed
+    ? data.isbn
+      ? `Manual entry. ISBN ${data.isbn.trim()} not found in lookup chain.`
+      : `Manual entry. LCCN ${normalizeLccn(data.lccn ?? "")} not found in Open Library.`
     : null;
 
   const [book] = await db
@@ -111,14 +131,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     .returning();
 
   if (request.headers.get("accept")?.includes("application/json")) {
-    return NextResponse.json({ book, lookup }, { status: 201 });
+    return NextResponse.json({ book, lookup, lookupKind }, { status: 201 });
   }
 
   const redirectUrl = new URL(`/batches/${id}`, request.url);
   if (lookup) {
     redirectUrl.searchParams.set("manual", "hit");
     redirectUrl.searchParams.set("source", lookup.source);
-  } else if (isbnOnlyMissed) {
+  } else if (lookupMissed) {
     redirectUrl.searchParams.set("manual", "miss");
   }
   redirectUrl.hash = `book-${book.id}`;

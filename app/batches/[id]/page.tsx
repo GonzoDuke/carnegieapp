@@ -270,9 +270,10 @@ export default async function BatchDetailPage({
                   className="space-y-3"
                 >
                   <p className="text-muted-foreground text-xs">
-                    Enter an ISBN and submit — title, author, publisher, and cover
-                    will fill in automatically. Other fields are only needed for
-                    books without an ISBN.
+                    Enter an ISBN — or, for older books without one, an LCCN
+                    (Library of Congress Control Number). Title, author,
+                    publisher, and cover fill in automatically when the
+                    lookup succeeds.
                   </p>
                   <div className="grid gap-2">
                     <Label htmlFor="manual-isbn">
@@ -289,10 +290,25 @@ export default async function BatchDetailPage({
                       maxLength={20}
                     />
                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="manual-lccn">
+                      LCCN
+                      <span className="text-muted-foreground ml-1 font-normal">
+                        (older books)
+                      </span>
+                    </Label>
+                    <Input
+                      id="manual-lccn"
+                      type="text"
+                      name="lccn"
+                      placeholder="e.g. 78890351 or n78890351"
+                      maxLength={30}
+                    />
+                  </div>
                   <details className="group">
                     <summary className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer list-none items-center gap-1 text-xs font-medium">
                       <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
-                      No ISBN? Enter details manually
+                      No ISBN or LCCN? Enter details manually
                     </summary>
                     <div className="mt-3 space-y-3">
                       <div className="grid gap-2">
