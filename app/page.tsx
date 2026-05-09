@@ -159,16 +159,13 @@ export default async function HomePage() {
         : new Date(b.lastActivity as unknown as string),
   }));
 
-  // Open = still being worked on (no exportedAt). Sent = already shipped to
-  // LibraryThing; lives in the archive footer rather than the active queue.
-  // Open batches are sorted by recent activity so the one you most likely
-  // want to resume sits at the top.
+  // Open = still being worked on (no exportedAt). Sent batches live on
+  // /archive and are reached via the TopBar archive icon — no longer
+  // surfaced on the home page. Open batches are sorted by recent activity
+  // so the one you most likely want to resume sits at the top.
   const openBatches = normalizedBatches
     .filter((b) => b.exportedAt === null)
     .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
-  const sentBatches = normalizedBatches
-    .filter((b) => b.exportedAt !== null)
-    .sort((a, b) => b.exportedAt!.getTime() - a.exportedAt!.getTime());
 
   const lastEdit = openBatches[0] ?? null;
 
@@ -317,20 +314,8 @@ export default async function HomePage() {
           </section>
         </div>
 
-        <footer className="text-muted-foreground space-y-1.5 border-t pt-6 text-xs">
-          {sentBatches.length > 0 && (
-            <Link
-              href="/archive"
-              className="hover:text-foreground group inline-flex items-center gap-1.5 transition-colors"
-            >
-              View archive · {sentBatches.length}{" "}
-              {sentBatches.length === 1 ? "batch" : "batches"} sent
-              <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
-            </Link>
-          )}
-          <p>
-            Vision API: {budget.used} / {budget.limit} used today (UTC).
-          </p>
+        <footer className="text-muted-foreground border-t pt-6 text-xs">
+          Vision API: {budget.used} / {budget.limit} used today (UTC).
         </footer>
       </main>
     </>

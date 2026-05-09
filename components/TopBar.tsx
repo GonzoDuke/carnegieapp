@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { Info, LogOut } from "lucide-react";
+import { Archive, Info, LogOut } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { getCurrentUserId } from "@/lib/auth";
 import BrandMark from "@/components/BrandMark";
@@ -63,6 +63,15 @@ export default async function TopBar() {
               {userName}
             </span>
           )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Archive"
+            className="text-muted-foreground"
+            render={<Link href="/archive" />}
+          >
+            <Archive className="size-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
