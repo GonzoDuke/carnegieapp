@@ -37,19 +37,60 @@ type OlBook = {
 
 type OlEnvelope = Record<string, OlBook>;
 
-// Normalize an LCCN: lowercase, strip everything that isn't a letter or
-// digit. The OL API will accept hyphens but the bibkey is keyed off the
-// raw string, so a stable normalized form gives us consistent results.
+// Normalize an LCCN per the Library of Congress spec
+// (https://www.loc.gov/marc/lccn-namespace.html):
+//   1. Strip whitespace, lowercase letters.
+//   2. Drop everything to the right of a forward slash (and the slash).
+//   3. If a hyphen is present, remove it and left-pad the post-hyphen
+//      substring with zeros so it's 6 chars wide. So `56-11983` → the
+//      part after the hyphen is `11983` (5 chars), pads to `011983`,
+//      yielding `56011983`. This is the form Open Library's bibkey
+//      lookup expects — without padding, OL returns nothing.
 export function normalizeLccn(input: string): string {
-  return input.toLowerCase().replace(/[^a-z0-9]/g, "");
+  let s = input.toLowerCase().replace(/\s+/g, "");
+  const slashIdx = s.indexOf("/");
+  if (slashIdx >= 0) s = s.slice(0, slashIdx);
+  const hyphenIdx = s.indexOf("-");
+  if (hyphenIdx >= 0) {
+    const left = s.slice(0, hyphenIdx);
+    const right = s.slice(hyphenIdx + 1).padStart(6, "0");
+    s = left + right;
+  }
+  return s;
+}
+
+// Heuristic variants for inputs that arrive without the hyphen (so the
+// pad rule can't trigger). Pre-2001 LCCNs are 8 chars (2-digit year + 6
+// serial); post-2001 are 10 chars (4 + 6). If the digits-only form is 7
+// or 9, the user almost certainly typed the spaceless form with a
+// leading zero dropped — try the padded version too.
+function lccnVariants(normalized: string): string[] {
+  const variants = [normalized];
+  // Only digits → guess pad
+  if (/^\d+$/.test(normalized)) {
+    if (normalized.length === 7) {
+      variants.push(normalized.slice(0, 2) + "0" + normalized.slice(2));
+    } else if (normalized.length === 9) {
+      variants.push(normalized.slice(0, 4) + "0" + normalized.slice(4));
+    }
+  }
+  return variants;
 }
 
 export async function lookupByLccn(
   rawLccn: string,
 ): Promise<LookupResult | null> {
-  const lccn = normalizeLccn(rawLccn);
-  if (!lccn) return null;
+  const normalized = normalizeLccn(rawLccn);
+  if (!normalized) return null;
 
+  for (const candidate of lccnVariants(normalized)) {
+    const book = await fetchOlByLccn(candidate);
+    if (book) return projectBookToResult(book);
+  }
+  return null;
+}
+
+async function fetchOlByLccn(lccn: string): Promise<OlBook | null> {
   const url = `${BASE_URL}/api/books?bibkeys=${encodeURIComponent(
     `LCCN:${lccn}`,
   )}&format=json&jscmd=data`;
@@ -70,11 +111,7 @@ export async function lookupByLccn(
 
   const json = (await response.json().catch(() => null)) as OlEnvelope | null;
   if (!json) return null;
-
-  const book = json[`LCCN:${lccn}`];
-  if (!book) return null;
-
-  return projectBookToResult(book);
+  return json[`LCCN:${lccn}`] ?? null;
 }
 
 function projectBookToResult(book: OlBook): LookupResult {
