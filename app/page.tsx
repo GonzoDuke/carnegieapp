@@ -30,14 +30,21 @@ export default async function HomePage() {
           location: schema.batches.location,
           createdAt: schema.batches.createdAt,
           exportedAt: schema.batches.exportedAt,
-          bookCount: sql<number>`(SELECT COUNT(*)::int FROM ${schema.books} WHERE ${schema.books.batchId} = ${schema.batches.id})`,
-          confirmedCount: sql<number>`(SELECT COUNT(*)::int FROM ${schema.books} WHERE ${schema.books.batchId} = ${schema.batches.id} AND ${schema.books.status} = 'confirmed')`,
-          pendingCount: sql<number>`(SELECT COUNT(*)::int FROM ${schema.books} WHERE ${schema.books.batchId} = ${schema.batches.id} AND ${schema.books.status} = 'pending_review')`,
+          // Note: column refs inside Drizzle's sql template don't get
+          // table-qualified — `${schema.batches.id}` becomes "id" rather
+          // than "batches"."id". Inside a correlated subquery whose own
+          // FROM is books, an unqualified "id" would resolve to books.id
+          // and the predicate becomes a tautology that returns 0 for every
+          // row. Hand-qualifying as `batches.id` / `books.batch_id` makes
+          // the correlation actually correlate.
+          bookCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id)`,
+          confirmedCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id AND books.status = 'confirmed')`,
+          pendingCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id AND books.status = 'pending_review')`,
           // Last book added (or batch created if empty) — drives the "where
           // you left off" link and the per-batch "edited Xh ago" line.
           lastActivity: sql<Date>`COALESCE(
-            (SELECT MAX(created_at) FROM ${schema.books} WHERE ${schema.books.batchId} = ${schema.batches.id}),
-            ${schema.batches.createdAt}
+            (SELECT MAX(books.created_at) FROM books WHERE books.batch_id = batches.id),
+            batches.created_at
           )`,
           sampleBooks: sql<
             Array<{
@@ -60,10 +67,10 @@ export default async function HomePage() {
             )
             FROM (
               SELECT cover_url, isbn_13, isbn_10, title
-              FROM ${schema.books}
-              WHERE ${schema.books.batchId} = ${schema.batches.id}
-                AND ${schema.books.status} = 'confirmed'
-              ORDER BY created_at DESC
+              FROM books
+              WHERE books.batch_id = batches.id
+                AND books.status = 'confirmed'
+              ORDER BY books.created_at DESC
               LIMIT 8
             ) sub
           )`,
