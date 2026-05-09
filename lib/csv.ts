@@ -18,10 +18,8 @@ export const LIBRARYTHING_COLUMNS = [
 type CsvBatch = Pick<Batch, "name" | "location">;
 
 export function buildLibraryThingCsv(books: Book[], batch: CsvBatch): string {
-  // Batch name + location go into Comments rather than Tags so LibraryThing's
-  // tag pool stays clean — only true subject tags ("fiction", "mystery", etc.)
-  // make it into Tags.
-  const batchLine = batch.name ? `Batch: ${batch.name}` : null;
+  // Location goes into Comments — LibraryThing has no first-class field for
+  // it and Comments is the right place for free-form context per book.
   const locationLine = batch.location ? `Location: ${batch.location}` : null;
 
   const rows = books.map((book) => {
@@ -31,14 +29,22 @@ export function buildLibraryThingCsv(books: Book[], batch: CsvBatch): string {
     // Tags column carries only subject tags from the lookup chain (and any
     // user-added tags on the book row).
     const tags = book.tags.filter(Boolean).join(", ");
-    const collections = book.collections.join(", ");
-    // Comments: batch context, location, LCC call number, the synopsis
-    // captured at lookup time, then any per-book user comment. Each on its
-    // own line so LT renders them readably.
+    // Collections column: batch name first, then any user-curated
+    // collections on the book row. LibraryThing's importer creates the
+    // named collection on first import — so books from a "Garage" batch
+    // land in the "Garage" collection rather than getting dumped into
+    // "Your library" by default. Deduped in case the user added the
+    // batch name to book.collections by hand.
+    const collectionList = [batch.name, ...book.collections.filter(Boolean)]
+      .filter((c): c is string => Boolean(c))
+      .filter((c, i, a) => a.indexOf(c) === i);
+    const collections = collectionList.join(", ");
+    // Comments: location, LCC call number, the synopsis captured at lookup
+    // time, then any per-book user comment. Each on its own line so LT
+    // renders them readably.
     const lccLine = book.lcc ? `LCC: ${book.lcc}` : null;
     const descriptionLine = book.description ? book.description : null;
     const comments = [
-      batchLine,
       locationLine,
       lccLine,
       descriptionLine,
