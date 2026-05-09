@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
-import { AlertTriangle, ArrowRight, Check, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Sparkles,
+} from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
 import { getBudget } from "@/lib/vision-budget";
@@ -308,16 +314,17 @@ export default async function HomePage() {
         </section>
 
         {sentBatches.length > 0 && (
-          <section className="space-y-3 border-t pt-8">
-            <h2 className="text-muted-foreground text-xs font-medium uppercase tracking-[0.2em]">
-              Already sent to LibraryThing · {sentBatches.length}
-            </h2>
-            <ul className="grid gap-2 text-base sm:grid-cols-2">
+          <details className="group border-t pt-6">
+            <summary className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer list-none items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] transition-colors">
+              <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
+              Sent to LibraryThing · {sentBatches.length}
+            </summary>
+            <ul className="mt-4 grid gap-2 text-base sm:grid-cols-2">
               {sentBatches.map((b) => (
                 <li key={b.id}>
                   <Link
                     href={`/batches/${b.id}`}
-                    className="hover:bg-muted/50 group flex items-center gap-2 rounded-md px-2 py-2 transition-colors"
+                    className="hover:bg-muted/50 group/item flex items-center gap-2 rounded-md px-2 py-2 transition-colors"
                   >
                     <Check className="text-primary size-4 shrink-0" />
                     <span className="text-foreground truncate font-medium">
@@ -336,7 +343,7 @@ export default async function HomePage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </details>
         )}
 
         <footer className="text-muted-foreground border-t pt-6 text-xs">
