@@ -178,7 +178,10 @@ export default async function HomePage() {
 
   const lastEdit = openBatches[0] ?? null;
 
-  const quickAddBatches = batches.map((b) => ({
+  // Quick-add only targets batches that are still in flight. Sent
+  // batches stay searchable but you shouldn't be dropping new books
+  // into one that's already been pushed to LibraryThing.
+  const quickAddBatches = openBatches.map((b) => ({
     id: b.id,
     name: b.name,
     location: b.location,
@@ -188,7 +191,7 @@ export default async function HomePage() {
     <>
       <TopBar />
 
-      <main className="mx-auto w-full max-w-5xl space-y-12 px-4 py-8 sm:py-10">
+      <main className="mx-auto w-full max-w-7xl space-y-12 px-4 py-8 sm:py-10">
         {/* In-flight status — big serif statement of work state, plus a
             "where you left off" link to the most recently active batch.
             This replaces the old welcome hero / 4-up stat tiles; this
@@ -263,55 +266,62 @@ export default async function HomePage() {
           <QuickAddBar batches={quickAddBatches} />
         </section>
 
-        {/* Needs your decision — pending review board. */}
-        <section className="space-y-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
-              Needs your decision
-              {totalPending > 0 && (
-                <span className="text-muted-foreground ml-2 text-base font-normal tabular-nums">
-                  · {totalPending}
-                </span>
+        {/* Two-column workspace on lg+: decisions on the left, projects on
+            the right. The brain-shift between "books needing a verdict"
+            and "batches needing more work" justifies a hard gutter rather
+            than a balanced flow. Stacks back to one column below lg so
+            phones don't end up reading two cramped lanes. */}
+        <div className="grid gap-x-8 gap-y-12 lg:grid-cols-2">
+          {/* Needs your decision — pending review board. */}
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
+                Needs your decision
+                {totalPending > 0 && (
+                  <span className="text-muted-foreground ml-2 text-base font-normal tabular-nums">
+                    · {totalPending}
+                  </span>
+                )}
+              </h2>
+              {totalPending > pendingBoard.length && (
+                <Link
+                  href="/search?status=pending_review&sort=confidence"
+                  className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
+                >
+                  show {totalPending - pendingBoard.length} more
+                  <ArrowRight className="size-3.5" />
+                </Link>
               )}
-            </h2>
-            {totalPending > pendingBoard.length && (
-              <Link
-                href="/search?status=pending_review&sort=confidence"
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
-              >
-                show {totalPending - pendingBoard.length} more
-                <ArrowRight className="size-3.5" />
-              </Link>
+            </div>
+            <PendingReviewPanel books={pendingBoard} />
+          </section>
+
+          {/* Open batches — full-width project cards within their column. */}
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
+                Batches open
+                {openBatches.length > 0 && (
+                  <span className="text-muted-foreground ml-2 text-base font-normal tabular-nums">
+                    · {openBatches.length}
+                  </span>
+                )}
+              </h2>
+            </div>
+
+            {openBatches.length === 0 ? (
+              <EmptyBatches />
+            ) : (
+              <ul className="space-y-3">
+                {openBatches.map((b) => (
+                  <li key={b.id}>
+                    <BatchCard batch={b} />
+                  </li>
+                ))}
+              </ul>
             )}
-          </div>
-          <PendingReviewPanel books={pendingBoard} />
-        </section>
-
-        {/* Open batches — full-width project cards. */}
-        <section className="space-y-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
-              Batches open
-              {openBatches.length > 0 && (
-                <span className="text-muted-foreground ml-2 text-base font-normal tabular-nums">
-                  · {openBatches.length}
-                </span>
-              )}
-            </h2>
-          </div>
-
-          {openBatches.length === 0 ? (
-            <EmptyBatches />
-          ) : (
-            <ul className="space-y-3">
-              {openBatches.map((b) => (
-                <li key={b.id}>
-                  <BatchCard batch={b} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+          </section>
+        </div>
 
         {sentBatches.length > 0 && (
           <details className="group border-t pt-6">

@@ -82,7 +82,10 @@ export default function PendingReviewPanel({ books }: Props) {
   }
 
   return (
-    <ul className="grid gap-3 sm:grid-cols-2">
+    // 1-up cards. The home-page workbench now puts this panel inside a
+    // 2-col grid at lg+, so a sm:grid-cols-2 would cram two cards into
+    // each column on mid-size screens.
+    <ul className="space-y-3">
       {books.map((book) => {
         const busy = busyIds.has(book.id);
         const dot = confidenceDot(book.source, book.confidence);
