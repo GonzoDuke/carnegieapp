@@ -53,4 +53,4 @@ eval/photos/*
 !eval/photos/.gitkeep
 eval/truth/*
 !eval/truth/.gitkeep
-eval/baseline.json
+eval/baseline*.json

@@ -12,17 +12,30 @@ export const OPUS_MODEL = "claude-opus-4-7";
 // re-uses it.
 const SYSTEM_PROMPT = `You are extracting books from a photograph of physical books, typically a bookshelf, a stack, or several books laid out together.
 
-For every distinct book you can identify in the image, return a JSON entry with:
-- "title": string. The book's title as it appears on the spine. Clean up obvious OCR artifacts (broken letters, partial words). If a subtitle is visible, include it after a colon. Library shelf-classification stickers go in "spine_classification", never here.
-- "author": string or null. The author(s) as printed on the spine. Use null if no author is visible. For multiple authors, join with " / ". Library shelf-classification stickers go in "spine_classification", never here.
-- "visible_isbn": string or null. Only fill this if you can clearly read an ISBN number or scan a barcode in the image. Otherwise null.
-- "spine_classification": string or null. If a library shelving sticker is visible (e.g. "PR6045.O72 H37 1999", "813.54 STE", "FIC TOL"), put its raw text here verbatim. Otherwise null. Do NOT include this text in the title or author fields.
-- "confidence": number between 0.0 and 1.0. Your confidence that this is a real, distinct book and that the title is correct.
+For every distinct physical book in the image, return a JSON entry with:
+
+- "title": string. The book's title as printed on the spine. Preserve punctuation, capitalization, and intentional cover styling (asterisk-censored profanity stays as asterisks). If a subtitle is also printed, include it after a colon. If the cover prominently shows the author's name as a separate line, the author goes in "author" — do NOT concatenate the author into the title. If a single letter is partially obscured, prefer the most likely letter from real-world title context (a partially-obscured "Free" is far more likely than "Far"); but never invent words you cannot see at least the first and last letter of. Library shelf stickers go in "spine_classification", not here.
+
+- "author": string or null. The author(s) as printed on the spine or cover. Multiple authors join with " / ". Use null when no author is visible. Library shelf stickers go in "spine_classification", not here.
+
+- "visible_isbn": string or null. Only fill this when you can clearly read the digits of an ISBN or decode a printed barcode. Otherwise null.
+
+- "spine_classification": string or null. Verbatim text from a library shelving sticker if one is visible (e.g. "PR6045.O72 H37 1999", "813.54 STE", "FIC TOL"). Otherwise null. Never put this text in the title or author fields.
+
+- "confidence": number between 0.0 and 1.0. Use this rubric — pick the LOWEST confidence whose description fits:
+  - 0.95+: every word of title and author is clearly legible.
+  - 0.80: title clearly legible; author partial (initial only, or last name partly obscured).
+  - 0.60: title legible but you are guessing one word or letter; author unknown or unreadable.
+  - 0.40: best-guess at the dominant word in the title; everything else inferred from book size, color, or context.
+  - 0.20: nearly illegible; only a partial word read.
+
+Multi-volume series rule: when a single spine shows BOTH a series title and a volume identifier and the volume's own title (e.g. "The New Cambridge Modern History" + "Vol II" + "The Reformation 1520–1559"), capture the FULL combined string as one title. Do not split into multiple shorter entries — that's one physical book, one entry.
+
+Each physical book on the shelf gets exactly one entry. Two physical copies of the same book are two entries.
 
 Skip:
-- Decorative objects, knick-knacks, picture frames.
-- Books where you cannot read enough of the spine to even guess at the title.
-- Duplicates of the same book within one image.
+- Decorative objects, knick-knacks, picture frames, plants.
+- Books where the spine is so obscured you cannot read more than a single letter or partial word.
 
 Output ONLY a single JSON object. No prose, no markdown fences, no commentary.
 
@@ -31,7 +44,18 @@ Schema:
   "books": [
     { "title": "string", "author": "string|null", "visible_isbn": "string|null", "spine_classification": "string|null", "confidence": 0.0 }
   ]
-}`;
+}
+
+Examples (for reference; do not include these in your output):
+
+Spine shows "SOPHOCLES" stacked above "THE OEDIPUS CYCLE":
+  { "title": "The Oedipus Cycle", "author": "Sophocles", "visible_isbn": null, "spine_classification": null, "confidence": 0.95 }
+
+Spine shows "THE NEW CAMBRIDGE MODERN HISTORY" / "VOL II" / "THE REFORMATION 1520-1559" stacked vertically (one book, three lines):
+  { "title": "The New Cambridge Modern History, Vol II: The Reformation 1520-1559", "author": null, "visible_isbn": null, "spine_classification": null, "confidence": 0.80 }
+
+Spine partially obscured: you can read "We Are Not Fr_e" with one letter unclear:
+  { "title": "We Are Not Free", "author": "Traci Chee", "visible_isbn": null, "spine_classification": null, "confidence": 0.60 }`;
 
 export type VisionBook = {
   title: string;
