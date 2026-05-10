@@ -45,3 +45,12 @@ next-env.d.ts
 
 # Local-only operator notes (user passcodes, recovery commands, etc.)
 USERS.md
+
+# Vision eval harness — local photos, truth labels, and baselines.
+# .gitkeep files in each folder are tracked so a fresh clone has the
+# scaffold ready; everything else local.
+eval/photos/*
+!eval/photos/.gitkeep
+eval/truth/*
+!eval/truth/.gitkeep
+eval/baseline.json

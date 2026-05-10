@@ -4,6 +4,7 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
+import { log, requestIdFrom } from "@/lib/log";
 import { processUserIsbn } from "@/lib/lookup/isbn";
 import { lookupByIsbn } from "@/lib/lookup";
 import { lookupByTitle } from "@/lib/lookup/title";
@@ -28,6 +29,7 @@ const ActionSchema = z.object({
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const userId = await requireUserId();
   const { id, bookId } = await params;
+  const requestId = requestIdFrom(request.headers);
   const form = await request.formData();
 
   // Two _action values may exist (hidden input + button) — last one wins
@@ -65,8 +67,24 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       .where(ownerScope)
       .returning();
     if (!deleted) {
+      log("book.action", {
+        request_id: requestId,
+        user_id: userId,
+        batch_id: id,
+        book_id: bookId,
+        action: "delete",
+        outcome: "not_found",
+      });
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    log("book.action", {
+      request_id: requestId,
+      user_id: userId,
+      batch_id: id,
+      book_id: bookId,
+      action: "delete",
+      outcome: "ok",
+    });
     return NextResponse.redirect(new URL(`/batches/${id}`, request.url), {
       status: 303,
     });
@@ -129,6 +147,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   if (action !== "relookup") {
+    log("book.action", {
+      request_id: requestId,
+      user_id: userId,
+      batch_id: id,
+      book_id: bookId,
+      action: "save",
+      outcome: "ok",
+    });
     return NextResponse.redirect(new URL(`/batches/${id}`, request.url), {
       status: 303,
     });
@@ -177,6 +203,15 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   if (!result) {
+    log("book.action", {
+      request_id: requestId,
+      user_id: userId,
+      batch_id: id,
+      book_id: bookId,
+      action: "relookup",
+      outcome: "miss",
+      used_title_search: usedTitleSearch,
+    });
     redirectUrl.searchParams.set("relookup", "miss");
     redirectUrl.hash = `book-${book.id}`;
     return NextResponse.redirect(redirectUrl, { status: 303 });
@@ -211,6 +246,18 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       .set(lookupUpdates)
       .where(ownerScope);
   }
+
+  log("book.action", {
+    request_id: requestId,
+    user_id: userId,
+    batch_id: id,
+    book_id: bookId,
+    action: "relookup",
+    outcome: "hit",
+    used_title_search: usedTitleSearch,
+    source: resultSource,
+    fields_filled: Object.keys(lookupUpdates),
+  });
 
   redirectUrl.searchParams.set("relookup", "hit");
   if (resultSource) redirectUrl.searchParams.set("source", resultSource);

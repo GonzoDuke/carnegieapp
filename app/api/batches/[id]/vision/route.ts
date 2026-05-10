@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
+import { log, requestIdFrom } from "@/lib/log";
 import {
   extractBooksFromImage,
   OPUS_MODEL,
@@ -30,6 +31,7 @@ const LOW_CONFIDENCE = 0.7;
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const userId = await requireUserId();
   const { id } = await params;
+  const requestId = requestIdFrom(request.headers);
 
   const db = getDb();
   const [batch] = await db
@@ -38,6 +40,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     .where(and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)))
     .limit(1);
   if (!batch) {
+    log("vision.error", {
+      request_id: requestId,
+      user_id: userId,
+      batch_id: id,
+      reason: "batch_not_found",
+    });
     return NextResponse.json({ error: "Batch not found" }, { status: 404 });
   }
 
@@ -71,6 +79,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const base64 = bytes.toString("base64");
 
+  log("vision.start", {
+    request_id: requestId,
+    user_id: userId,
+    batch_id: id,
+    media_type: mediaType,
+    bytes: bytes.length,
+  });
+
   // Reserve the budget slot before calling Claude. If the call fails, this
   // slot is already spent — that's intentional: we don't want a flaky vision
   // call to look free.
@@ -80,6 +96,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     extraction = await extractBooksFromImage(base64, mediaType);
   } catch (err) {
+    log("vision.error", {
+      request_id: requestId,
+      user_id: userId,
+      batch_id: id,
+      stage: "sonnet",
+      error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json(
       {
         error: err instanceof Error ? err.message : String(err),
@@ -109,11 +132,30 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         extraction = opus;
         escalated = true;
       }
-    } catch {
+    } catch (err) {
       // Opus failed (rate-limit, timeout) — fall back to Sonnet's read. The
       // budget tick is already spent; that's acceptable cost-of-trying.
+      log("vision.error", {
+        request_id: requestId,
+        user_id: userId,
+        batch_id: id,
+        stage: "opus_escalation",
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
+
+  log("vision.extract", {
+    request_id: requestId,
+    user_id: userId,
+    batch_id: id,
+    model: extraction.model,
+    books: extraction.books.length,
+    lowest_confidence: lowestConfidence,
+    escalated,
+    input_tokens: extraction.usage.input_tokens,
+    output_tokens: extraction.usage.output_tokens,
+  });
 
   if (extraction.books.length === 0) {
     return NextResponse.json({
@@ -127,6 +169,28 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const enriched = await Promise.all(
     extraction.books.map((book) => enrichDetected(book)),
   );
+
+  // Aggregate the lookup outcomes into one event rather than per-book
+  // noise. Sources are interesting in aggregate ("ISBNdb won 5 of 7"),
+  // less so individually.
+  const lookupSources: Record<string, number> = {};
+  let lookupHits = 0;
+  for (const e of enriched) {
+    if (e.lookup) {
+      lookupHits++;
+      const src = e.lookup.source ?? "unknown";
+      lookupSources[src] = (lookupSources[src] ?? 0) + 1;
+    }
+  }
+  log("vision.lookup", {
+    request_id: requestId,
+    user_id: userId,
+    batch_id: id,
+    detected: enriched.length,
+    lookup_hits: lookupHits,
+    lookup_misses: enriched.length - lookupHits,
+    sources: lookupSources,
+  });
 
   const inserted = await db
     .insert(schema.books)
@@ -164,6 +228,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       })),
     )
     .returning();
+
+  log("vision.insert", {
+    request_id: requestId,
+    user_id: userId,
+    batch_id: id,
+    inserted: inserted.length,
+  });
 
   return NextResponse.json({
     summary: {
