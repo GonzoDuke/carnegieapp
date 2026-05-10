@@ -28,6 +28,15 @@ export const maxDuration = 60;
 // shelf typically lands 0.85+ across the board).
 const LOW_CONFIDENCE = 0.7;
 
+// Anthropic rejects images whose **base64-encoded** payload exceeds
+// 5 MiB. Base64 expansion is 4/3, so raw bytes can be at most ~3.75 MiB
+// before the encoded size trips the cap. PhotoCapture already compresses
+// on the client, so the production path stays well under this — but a
+// curl bypass or a future non-PhotoCapture caller would otherwise
+// surface a generic 502 from the SDK. Cap the request here and return
+// an actionable 413 instead.
+const MAX_IMAGE_BYTES = Math.floor((5 * 1024 * 1024 * 3) / 4); // 3,932,160
+
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const userId = await requireUserId();
   const { id } = await params;
@@ -77,6 +86,24 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
+
+  if (bytes.length > MAX_IMAGE_BYTES) {
+    log("vision.error", {
+      request_id: requestId,
+      user_id: userId,
+      batch_id: id,
+      reason: "image_too_large",
+      bytes: bytes.length,
+      limit: MAX_IMAGE_BYTES,
+    });
+    return NextResponse.json(
+      {
+        error: `Image is ${(bytes.length / 1024 / 1024).toFixed(1)} MB raw; the limit after base64 encoding is 5 MB (≈ ${(MAX_IMAGE_BYTES / 1024 / 1024).toFixed(1)} MB raw). Take a smaller photo or use the in-app capture (which compresses automatically).`,
+      },
+      { status: 413 },
+    );
+  }
+
   const base64 = bytes.toString("base64");
 
   log("vision.start", {

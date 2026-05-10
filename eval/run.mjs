@@ -81,23 +81,105 @@ function normalize(s) {
     .trim();
 }
 
-// A truth book matches an extracted book if (a) the normalized titles
-// share a 4-char-or-longer token, AND (b) the normalized authors share a
-// 4-char-or-longer token (when both have authors). Loose enough for
-// "Pale Fire" / "Pale fire: a poem" but tight enough to avoid spurious
-// matches between two different books with similar one-word titles.
+// Letter-only sequence (no spaces, no digits, no punctuation). Used by
+// the subsequence match so a censored title ("Sh*t is F*cked") matches
+// its uncensored truth ("Shit is Fucked") — the censored letters are
+// missing, so a strict equality fails, but the censored letters form
+// a subsequence of the uncensored ones in order.
+function letterOnly(s) {
+  return s.toLowerCase().replace(/[^a-z]/g, "");
+}
+
+// True iff every character of `needle` appears in `hay` in order
+// (consecutive or not). O(n+m). Caller should call with the shorter
+// string as needle so a long truth title isn't rejected for a short
+// model output.
+function isSubsequence(needle, hay) {
+  if (!needle) return true;
+  let i = 0;
+  for (let j = 0; j < hay.length && i < needle.length; j++) {
+    if (hay[j] === needle[i]) i++;
+  }
+  return i === needle.length;
+}
+
+// Tokenize, drop short articles. 4+ char threshold catches "oedipus" /
+// "cycle" but skips "the" / "of" / "a".
+function tokensFour(normalized) {
+  return new Set(normalized.split(" ").filter((t) => t.length >= 4));
+}
+
+// Title compatibility — three tiers, any of which is sufficient:
+//   1. Substring containment of the normalized titles. Catches
+//      "X" in "Chuck Klosterman X" and "The Oedipus Cycle" in
+//      "Sophocles: The Oedipus Cycle".
+//   2. 4+ char token overlap (the original heuristic — still the
+//      cleanest signal when both titles have meaningful words).
+//   3. Letter-only subsequence — handles censored variants where some
+//      letters are replaced by `*` ("Sh*t is F*cked Up" vs "Shit is
+//      Fucked Up").
+function titleCompatible(a, b) {
+  const t = normalize(a);
+  const e = normalize(b);
+  if (!t || !e) return false;
+
+  // 1. Substring (with a space-padded wrap so "X" only matches at word
+  // boundaries — otherwise "X" in "Xenophon" would spuriously match).
+  if (` ${e} `.includes(` ${t} `) || ` ${t} `.includes(` ${e} `)) return true;
+
+  // 2. 4+ char token overlap.
+  const tTokens = tokensFour(t);
+  for (const tok of e.split(" ")) {
+    if (tok.length >= 4 && tTokens.has(tok)) return true;
+  }
+
+  // 3. Letter-only subsequence in either direction.
+  const tLetters = letterOnly(a);
+  const eLetters = letterOnly(b);
+  if (tLetters && eLetters) {
+    const [shorter, longer] =
+      tLetters.length <= eLetters.length ? [tLetters, eLetters] : [eLetters, tLetters];
+    // Require the shorter side to be at least 6 chars to avoid spurious
+    // subsequence hits from very short normalizations.
+    if (shorter.length >= 6 && isSubsequence(shorter, longer)) return true;
+  }
+
+  return false;
+}
+
+// Author compatibility — looser than title matching because the model
+// frequently puts the author in the title field ("Sophocles: The
+// Oedipus Cycle") and leaves the author field null or partial. Matches
+// when:
+//   - either side has no author (model+truth disagree on field
+//     placement, but the title carried it — caller already verified
+//     title compatibility),
+//   - 4+ char token overlap on the author fields, OR
+//   - the truth author appears as a substring of the model's title (or
+//     vice versa) — catches the "author-in-title" case directly.
+function authorCompatible(truthAuthor, extractedAuthor, truthTitle, extractedTitle) {
+  const tA = truthAuthor ? normalize(truthAuthor) : "";
+  const eA = extractedAuthor ? normalize(extractedAuthor) : "";
+  if (!tA || !eA) return true;
+  const tTokens = tokensFour(tA);
+  for (const tok of eA.split(" ")) {
+    if (tok.length >= 4 && tTokens.has(tok)) return true;
+  }
+  // Author-in-title fallback.
+  const eT = ` ${normalize(extractedTitle)} `;
+  for (const tok of tA.split(" ")) {
+    if (tok.length >= 4 && eT.includes(` ${tok} `)) return true;
+  }
+  const tT = ` ${normalize(truthTitle)} `;
+  for (const tok of eA.split(" ")) {
+    if (tok.length >= 4 && tT.includes(` ${tok} `)) return true;
+  }
+  return false;
+}
+
 function bookMatch(a, b) {
-  const aTitle = normalize(a.title);
-  const bTitle = normalize(b.title);
-  if (!aTitle || !bTitle) return false;
-  const titleTokens = new Set(aTitle.split(" ").filter((t) => t.length >= 4));
-  const titleHit = bTitle.split(" ").some((t) => t.length >= 4 && titleTokens.has(t));
-  if (!titleHit) return false;
-  const aAuth = a.author ? normalize(a.author) : "";
-  const bAuth = b.author ? normalize(b.author) : "";
-  if (!aAuth || !bAuth) return true;
-  const authTokens = new Set(aAuth.split(" ").filter((t) => t.length >= 4));
-  return bAuth.split(" ").some((t) => t.length >= 4 && authTokens.has(t));
+  if (!titleCompatible(a.title, b.title)) return false;
+  return authorCompatible(a.author, b.author, a.title, b.title);
 }
 
 function listPhotos() {
@@ -107,6 +189,14 @@ function listPhotos() {
     .filter((f) => !photoFilter || basename(f, extname(f)) === photoFilter)
     .sort();
 }
+
+// Anthropic enforces a 5 MiB cap on the **base64-encoded** image, which
+// is 4/3 the raw byte size — so the raw-bytes ceiling is ~3.75 MiB. The
+// production PhotoCapture component compresses on the client; the eval
+// harness reads photos straight off disk, so anything bigger needs to
+// be re-saved at lower quality or smaller dimensions before the harness
+// can score it. We skip with a clear message instead of crashing.
+const HARNESS_MAX_BYTES = Math.floor((5 * 1024 * 1024 * 3) / 4); // 3,932,160
 
 async function runOnePhoto(photoFile) {
   const photoPath = join(PHOTOS_DIR, photoFile);
@@ -121,6 +211,14 @@ async function runOnePhoto(photoFile) {
   }
 
   const buf = readFileSync(photoPath);
+  if (buf.length > HARNESS_MAX_BYTES) {
+    return {
+      photo: photoFile,
+      status: "oversized",
+      bytes: buf.length,
+      limit: HARNESS_MAX_BYTES,
+    };
+  }
   const base64 = buf.toString("base64");
 
   let extraction = await extractBooksFromImage(base64, mediaType);
@@ -229,6 +327,10 @@ for (const p of photos) {
     results.push(r);
     if (r.status === "no-truth") {
       console.log("no truth file, skipping");
+    } else if (r.status === "oversized") {
+      console.log(
+        `oversized (${(r.bytes / 1024 / 1024).toFixed(1)} MB > ${r.limit / 1024 / 1024} MB), skipping. Re-save the photo smaller and re-run.`,
+      );
     } else {
       console.log(
         `P=${r.precision} R=${r.recall} conf=${r.mean_confidence} (${r.matched}/${r.truth_count}, +${r.extra.length} extra)${r.escalated ? " [opus]" : ""}`,
