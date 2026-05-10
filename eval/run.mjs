@@ -265,7 +265,13 @@ function scoreTrial(extraction, truthBooks) {
   };
 }
 
-// Run vision once (with optional confidence-gated Opus escalation).
+// Run vision once. With --escalate, mirrors the production route's
+// confidence-gated Opus escalation: if Sonnet's lowest confidence falls
+// below 0.7, re-run the same image on Opus and use that result.
+//
+// (A two-pass detect-and-crop alternative lives in lib/vision.ts but
+// was net-negative in the eval — it's kept for future experimentation
+// but not wired into the eval's --escalate any more.)
 async function runOneTrial(base64, mediaType) {
   let extraction = await extractBooksFromImage(base64, mediaType);
   let escalated = false;
@@ -281,7 +287,7 @@ async function runOneTrial(base64, mediaType) {
           escalated = true;
         }
       } catch {
-        /* fall back to Sonnet */
+        /* fall back to single-pass Sonnet */
       }
     }
   }

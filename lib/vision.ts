@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { Tool } from "@anthropic-ai/sdk/resources/messages";
+import sharp from "sharp";
 
 // Sonnet 4.6 is the default — good accuracy/cost balance for clean spines.
 // Opus is the escalation target: when a Sonnet pass returns any book under
@@ -37,14 +39,7 @@ Skip:
 - Decorative objects, knick-knacks, picture frames, plants.
 - Books where the spine is so obscured you cannot read more than a single letter or partial word.
 
-Output ONLY a single JSON object. No prose, no markdown fences, no commentary.
-
-Schema:
-{
-  "books": [
-    { "title": "string", "author": "string|null", "visible_isbn": "string|null", "spine_classification": "string|null", "confidence": 0.0 }
-  ]
-}
+Return your output by calling the report_books tool. Each detected book becomes one entry in the books array.
 
 Examples (for reference; do not include these in your output):
 
@@ -83,6 +78,53 @@ function client(): Anthropic {
   return _client;
 }
 
+// Tool schema is the structured-output contract. Anthropic validates the
+// model's output against this before returning, so the days of
+// parseJsonLoose / regex-extracting JSON from free-text are over — the
+// SDK either gives us a valid input object or throws.
+const REPORT_BOOKS_TOOL: Tool = {
+  name: "report_books",
+  description:
+    "Report every distinct book detected on the shelf, one entry per physical book.",
+  input_schema: {
+    type: "object",
+    properties: {
+      books: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "Book title as printed on the spine.",
+            },
+            author: {
+              type: ["string", "null"],
+              description: "Author(s), or null if not on the same spine.",
+            },
+            visible_isbn: {
+              type: ["string", "null"],
+              description: "ISBN if clearly readable on spine; otherwise null.",
+            },
+            spine_classification: {
+              type: ["string", "null"],
+              description: "Verbatim library shelf-sticker text, or null.",
+            },
+            confidence: {
+              type: "number",
+              minimum: 0,
+              maximum: 1,
+              description: "Confidence per the rubric in the system prompt.",
+            },
+          },
+          required: ["title", "confidence"],
+        },
+      },
+    },
+    required: ["books"],
+  },
+};
+
 export async function extractBooksFromImage(
   imageBase64: string,
   mediaType: "image/jpeg" | "image/png" | "image/webp",
@@ -98,6 +140,8 @@ export async function extractBooksFromImage(
         cache_control: { type: "ephemeral" },
       },
     ],
+    tools: [REPORT_BOOKS_TOOL],
+    tool_choice: { type: "tool", name: "report_books" },
     messages: [
       {
         role: "user",
@@ -108,24 +152,26 @@ export async function extractBooksFromImage(
           },
           {
             type: "text",
-            text: "Extract every book you can identify in this image. Return JSON only.",
+            text: "Identify every book you can see and call the report_books tool.",
           },
         ],
       },
     ],
   });
 
-  const textBlock = response.content.find((b) => b.type === "text");
-  const text = textBlock && textBlock.type === "text" ? textBlock.text : "";
-
-  const parsed = parseJsonLoose(text);
-  const books = Array.isArray(parsed?.books)
-    ? (parsed.books as unknown[]).flatMap(normalizeVisionBook)
+  // tool_choice forces the model to call our tool; the input is the
+  // schema-validated payload.
+  const toolUse = response.content.find(
+    (b): b is Extract<typeof b, { type: "tool_use" }> => b.type === "tool_use",
+  );
+  const input = (toolUse?.input ?? {}) as { books?: unknown[] };
+  const books = Array.isArray(input.books)
+    ? (input.books as unknown[]).flatMap(normalizeVisionBook)
     : [];
 
   return {
     books,
-    raw: { text, parsed },
+    raw: { input },
     model,
     usage: {
       input_tokens: response.usage.input_tokens,
@@ -134,22 +180,281 @@ export async function extractBooksFromImage(
   };
 }
 
-// Models occasionally wrap JSON in ```json fences or add a sentence before/after.
-// Try a strict parse first, then fall back to extracting the first {...} block.
-function parseJsonLoose(text: string): { books?: unknown[] } | null {
-  if (!text.trim()) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    /* fall through */
+// ─── Two-pass escalation: detect → crop → per-spine extract ──────────────
+//
+// When the bulk extractBooksFromImage pass returns low-confidence books,
+// the route can re-process the same image as a detect-then-read pipeline.
+// Each detected spine becomes its own cropped image fed to a single-book
+// extractor, which gives the model 5–10× the effective resolution per
+// spine and isolates each book from its neighbors (which fixes the
+// cross-attribution failure mode where authors leak between adjacent
+// spines).
+
+export type SpineBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type DetectionResult = {
+  boxes: SpineBox[];
+  model: string;
+  usage: { input_tokens: number; output_tokens: number };
+};
+
+export type SingleSpineResult = {
+  book: VisionBook | null;
+  model: string;
+  usage: { input_tokens: number; output_tokens: number };
+};
+
+const DETECT_SPINES_TOOL: Tool = {
+  name: "report_spine_boxes",
+  description:
+    "Report the bounding box of every book spine visible in the image, as normalized fractions of the image dimensions.",
+  input_schema: {
+    type: "object",
+    properties: {
+      boxes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            x: {
+              type: "number",
+              minimum: 0,
+              maximum: 1,
+              description: "Left edge as a fraction of image width (0 = left edge, 1 = right edge).",
+            },
+            y: {
+              type: "number",
+              minimum: 0,
+              maximum: 1,
+              description: "Top edge as a fraction of image height (0 = top, 1 = bottom).",
+            },
+            width: {
+              type: "number",
+              minimum: 0,
+              maximum: 1,
+              description: "Width as a fraction of image width.",
+            },
+            height: {
+              type: "number",
+              minimum: 0,
+              maximum: 1,
+              description: "Height as a fraction of image height.",
+            },
+          },
+          required: ["x", "y", "width", "height"],
+        },
+      },
+    },
+    required: ["boxes"],
+  },
+};
+
+const DETECT_PROMPT = `You are locating book spines in a photograph. Return the bounding box of every distinct book spine you can identify — even partially visible ones.
+
+Do NOT read titles. Do NOT extract metadata. Do NOT skip ambiguous spines. Just locate every vertical strip that is a book spine.
+
+Coordinates are **normalized fractions of the image dimensions**: x and y are 0 at top-left and 1 at the opposite edges; width and height are likewise 0–1 fractions. A spine that occupies the middle 5% of the image horizontally and the full vertical extent has x≈0.475, y=0, width≈0.05, height=1.0.
+
+Boxes should be tight around the spine itself — exclude shelf wood and neighboring books. A typical bookshelf photo has 5–30 spines.`;
+
+export async function detectSpineBoxes(
+  imageBase64: string,
+  mediaType: "image/jpeg" | "image/png" | "image/webp",
+  model: string = SONNET_MODEL,
+): Promise<DetectionResult> {
+  const response = await client().messages.create({
+    model,
+    max_tokens: 2048,
+    system: [
+      {
+        type: "text",
+        text: DETECT_PROMPT,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [DETECT_SPINES_TOOL],
+    tool_choice: { type: "tool", name: "report_spine_boxes" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: { type: "base64", media_type: mediaType, data: imageBase64 },
+          },
+          {
+            type: "text",
+            text: "Locate every spine and call the report_spine_boxes tool.",
+          },
+        ],
+      },
+    ],
+  });
+
+  const toolUse = response.content.find(
+    (b): b is Extract<typeof b, { type: "tool_use" }> => b.type === "tool_use",
+  );
+  const input = (toolUse?.input ?? {}) as { boxes?: unknown[] };
+  const boxes = Array.isArray(input.boxes)
+    ? input.boxes.filter(isValidBox)
+    : [];
+
+  return {
+    boxes,
+    model,
+    usage: {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+    },
+  };
+}
+
+function isValidBox(b: unknown): b is SpineBox {
+  if (!b || typeof b !== "object") return false;
+  const r = b as Record<string, unknown>;
+  return (
+    typeof r.x === "number" &&
+    typeof r.y === "number" &&
+    typeof r.width === "number" &&
+    typeof r.height === "number" &&
+    Number.isFinite(r.x) &&
+    Number.isFinite(r.y) &&
+    Number.isFinite(r.width) &&
+    Number.isFinite(r.height) &&
+    r.width > 0 &&
+    r.height > 0
+  );
+}
+
+// Crop a region from the source image, then upscale so the long edge hits
+// the target. Upscaling buys the per-spine model more pixels to work with
+// — a 5% slice of the original becomes ~1024px tall after crop+scale,
+// which is the whole point of the two-pass design.
+//
+// `box` is in normalized 0–1 fractions of the image dimensions (that's
+// what detectSpineBoxes returns; Claude Vision's internal coordinate
+// system doesn't reliably match the original image's pixel dimensions,
+// so we ask for normalized coords and scale here).
+export async function cropImage(
+  imageBuffer: Buffer,
+  box: SpineBox,
+  targetLongEdge: number = 1024,
+): Promise<Buffer> {
+  const meta = await sharp(imageBuffer).metadata();
+  const imgWidth = meta.width ?? 0;
+  const imgHeight = meta.height ?? 0;
+
+  // Scale normalized coords to pixels, then clamp to image bounds so a
+  // slightly-off model box doesn't crash sharp.
+  const pxX = Math.round(box.x * imgWidth);
+  const pxY = Math.round(box.y * imgHeight);
+  const pxW = Math.round(box.width * imgWidth);
+  const pxH = Math.round(box.height * imgHeight);
+
+  const left = Math.max(0, Math.min(imgWidth - 1, pxX));
+  const top = Math.max(0, Math.min(imgHeight - 1, pxY));
+  const width = Math.max(1, Math.min(imgWidth - left, pxW));
+  const height = Math.max(1, Math.min(imgHeight - top, pxH));
+
+  let pipeline = sharp(imageBuffer).extract({ left, top, width, height });
+  const longEdge = Math.max(width, height);
+  if (longEdge < targetLongEdge) {
+    const scale = targetLongEdge / longEdge;
+    pipeline = pipeline.resize({
+      width: Math.round(width * scale),
+      height: Math.round(height * scale),
+      fit: "fill",
+    });
   }
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[0]);
-  } catch {
-    return null;
-  }
+  return pipeline.jpeg({ quality: 85 }).toBuffer();
+}
+
+const REPORT_ONE_BOOK_TOOL: Tool = {
+  name: "report_one_book",
+  description:
+    "Report the single book whose spine fills this cropped image. Same field rules as the bulk-extraction tool.",
+  input_schema: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      author: { type: ["string", "null"] },
+      visible_isbn: { type: ["string", "null"] },
+      spine_classification: { type: ["string", "null"] },
+      confidence: { type: "number", minimum: 0, maximum: 1 },
+    },
+    required: ["title", "confidence"],
+  },
+};
+
+const ONE_SPINE_PROMPT = `This image is a close-up crop of a single book spine. Read it carefully and report what you see by calling the report_one_book tool.
+
+Field rules (same as the bulk-extraction pass):
+- "title": the title as printed on the spine. Preserve punctuation, capitalization, and intentional cover styling (asterisks for censored profanity stay). Include subtitle after a colon if printed.
+- "author": author(s) on THIS spine only. Multiple authors join with " / ". null if not visible on this crop.
+- "visible_isbn": digits if clearly readable on the spine. Otherwise null.
+- "spine_classification": library shelf-sticker text verbatim. Otherwise null.
+- "confidence" rubric (pick the LOWEST that fits):
+  - 0.95+: every word of title and author clearly legible.
+  - 0.80: title clear; author partial (initial only or last name partly obscured).
+  - 0.60: title legible but you are guessing one word or letter; author unknown or unreadable.
+  - 0.40: best-guess at the dominant word; everything else inferred.
+  - 0.20: nearly illegible; only a partial word read.
+
+If the crop does not contain a real book spine (cropping artifact, decorative object, mostly empty), return title="" and confidence=0 — the caller will drop empty entries.`;
+
+export async function extractOneSpineFromImage(
+  imageBase64: string,
+  mediaType: "image/jpeg" | "image/png" | "image/webp",
+  model: string = OPUS_MODEL,
+): Promise<SingleSpineResult> {
+  const response = await client().messages.create({
+    model,
+    max_tokens: 512,
+    system: [
+      {
+        type: "text",
+        text: ONE_SPINE_PROMPT,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    tools: [REPORT_ONE_BOOK_TOOL],
+    tool_choice: { type: "tool", name: "report_one_book" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: { type: "base64", media_type: mediaType, data: imageBase64 },
+          },
+          {
+            type: "text",
+            text: "Read this spine and report via report_one_book.",
+          },
+        ],
+      },
+    ],
+  });
+
+  const toolUse = response.content.find(
+    (b): b is Extract<typeof b, { type: "tool_use" }> => b.type === "tool_use",
+  );
+  const input = (toolUse?.input ?? null) as Record<string, unknown> | null;
+  const books = input ? normalizeVisionBook(input) : [];
+
+  return {
+    book: books[0] ?? null,
+    model,
+    usage: {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+    },
+  };
 }
 
 function normalizeVisionBook(raw: unknown): VisionBook[] {

@@ -143,6 +143,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   // and we still have budget headroom, re-run the same image on Opus and
   // prefer that result. We never escalate when Sonnet returned zero books
   // (different problem — bad photo, not bad reading).
+  //
+  // A two-pass detect→crop→per-spine-read variant lives in lib/vision.ts
+  // (detectSpineBoxes / cropImage / extractOneSpineFromImage) and was
+  // tested as an alternative escalation path. The eval showed it net-
+  // negative outside a narrow set of cross-attribution cases — detection
+  // over-detects, the per-spine reads then lose visual context, and easy
+  // photos that single-pass nails fall apart. Helpers are kept for
+  // future experimentation; the route uses Opus-full escalation.
   const lowestConfidence = extraction.books.length
     ? Math.min(...extraction.books.map((b) => b.confidence))
     : 1;
