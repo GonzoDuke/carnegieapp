@@ -6,14 +6,24 @@ be **graded**, not vibe-checked.
 ## Usage
 
 ```bash
-npm run eval:vision               # run the harness, write/refresh baseline
-npm run eval:vision -- --strict   # exit non-zero if recall regresses >5%
-npm run eval:vision -- --photo=garage.jpg  # run a single photo
+npm run eval:vision                       # one trial per photo
+npm run eval:vision -- --repeat=3         # 3 trials per photo, averaged
+npm run eval:vision -- --strict           # fail if recall regresses >5%
+npm run eval:vision -- --photo=garage.jpg # one specific photo
+npm run eval:vision -- --escalate         # also run Opus on low-conf photos
 ```
 
 Each run prints per-photo precision, recall, mean confidence, plus the
 list of titles the model found that aren't in the truth file (`extra`)
 and titles the truth file expected but the model missed (`missed`).
+
+**Why `--repeat`:** Anthropic's vision model is sampling-based, so the
+same photo returns slightly different extractions across calls. At
+`--repeat=1` (default) a single noisy result can flip 1–2 books per
+photo per run. With `--repeat=3` precision/recall are averaged across
+trials and the headline numbers move only when prompt or model
+changes do. Cost scales linearly with N — a 10-photo run at
+`--repeat=3` is 30 vision calls.
 
 ## Setup (one-time)
 

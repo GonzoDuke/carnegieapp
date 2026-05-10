@@ -29,6 +29,7 @@ const args = parseArgs(process.argv.slice(2));
 const escalateFlag = args.escalate ?? false;
 const strictFlag = args.strict ?? false;
 const photoFilter = args.photo ?? null;
+const repeatCount = Math.max(1, parseInt(args.repeat ?? "1", 10) || 1);
 
 function parseArgs(argv) {
   const out = {};
@@ -198,6 +199,74 @@ function listPhotos() {
 // can score it. We skip with a clear message instead of crashing.
 const HARNESS_MAX_BYTES = Math.floor((5 * 1024 * 1024 * 3) / 4); // 3,932,160
 
+// Score one model output against the truth. Pure function — no API calls.
+function scoreTrial(extraction, truthBooks) {
+  const extracted = extraction.books.map((b) => ({
+    title: b.title,
+    author: b.author,
+    isbn: b.visible_isbn,
+    confidence: b.confidence,
+  }));
+
+  // Greedy 1:1 matching from truth → extracted.
+  const matchedExtracted = new Set();
+  const missed = [];
+  for (const t of truthBooks) {
+    const idx = extracted.findIndex(
+      (e, i) => !matchedExtracted.has(i) && bookMatch(t, e),
+    );
+    if (idx === -1) missed.push(t.title);
+    else matchedExtracted.add(idx);
+  }
+  const extra = extracted
+    .map((e, i) => (matchedExtracted.has(i) ? null : e.title))
+    .filter(Boolean);
+  const extraDetail = extracted
+    .map((e, i) => (matchedExtracted.has(i) ? null : e))
+    .filter(Boolean);
+
+  const truePositives = matchedExtracted.size;
+  const precision = extracted.length > 0 ? truePositives / extracted.length : 0;
+  const recall = truthBooks.length > 0 ? truePositives / truthBooks.length : 0;
+  const meanConfidence = extracted.length
+    ? extracted.reduce((s, b) => s + (b.confidence ?? 0), 0) / extracted.length
+    : 0;
+
+  return {
+    extracted_count: extracted.length,
+    matched: truePositives,
+    precision,
+    recall,
+    mean_confidence: meanConfidence,
+    extra,
+    missed,
+    extra_detail: extraDetail,
+  };
+}
+
+// Run vision once (with optional confidence-gated Opus escalation).
+async function runOneTrial(base64, mediaType) {
+  let extraction = await extractBooksFromImage(base64, mediaType);
+  let escalated = false;
+  if (escalateFlag) {
+    const lowest = extraction.books.length
+      ? Math.min(...extraction.books.map((b) => b.confidence))
+      : 1;
+    if (lowest < 0.7) {
+      try {
+        const opus = await extractBooksFromImage(base64, mediaType, OPUS_MODEL);
+        if (opus.books.length > 0) {
+          extraction = opus;
+          escalated = true;
+        }
+      } catch {
+        /* fall back to Sonnet */
+      }
+    }
+  }
+  return { extraction, escalated };
+}
+
 async function runOnePhoto(photoFile) {
   const photoPath = join(PHOTOS_DIR, photoFile);
   const truthPath = join(TRUTH_DIR, basename(photoFile, extname(photoFile)) + ".json");
@@ -220,70 +289,57 @@ async function runOnePhoto(photoFile) {
     };
   }
   const base64 = buf.toString("base64");
-
-  let extraction = await extractBooksFromImage(base64, mediaType);
-  let escalated = false;
-  if (escalateFlag) {
-    const lowest = extraction.books.length
-      ? Math.min(...extraction.books.map((b) => b.confidence))
-      : 1;
-    if (lowest < 0.7) {
-      try {
-        const opus = await extractBooksFromImage(base64, mediaType, OPUS_MODEL);
-        if (opus.books.length > 0) {
-          extraction = opus;
-          escalated = true;
-        }
-      } catch {
-        /* fall back to Sonnet */
-      }
-    }
-  }
-
   const truthBooks = truth.books ?? [];
-  const extracted = extraction.books.map((b) => ({
-    title: b.title,
-    author: b.author,
-    isbn: b.visible_isbn,
-    confidence: b.confidence,
-  }));
 
-  // Greedy 1:1 matching from truth → extracted. Each truth book consumes
-  // at most one extracted book; an extracted book that doesn't pair to
-  // any truth book counts as `extra`.
-  const matchedExtracted = new Set();
-  const missed = [];
-  for (const t of truthBooks) {
-    const idx = extracted.findIndex(
-      (e, i) => !matchedExtracted.has(i) && bookMatch(t, e),
-    );
-    if (idx === -1) missed.push(t.title);
-    else matchedExtracted.add(idx);
+  // N trials per photo. Sequential rather than parallel so we don't
+  // bunch up against Anthropic rate limits or trip the per-user vision
+  // budget. The trade-off: a 12-photo --repeat=3 run takes ~3x longer
+  // than a single-trial run.
+  const trials = [];
+  for (let i = 0; i < repeatCount; i++) {
+    const { extraction, escalated } = await runOneTrial(base64, mediaType);
+    const score = scoreTrial(extraction, truthBooks);
+    trials.push({ ...score, model: extraction.model, escalated });
   }
-  const extra = extracted
-    .map((e, i) => (matchedExtracted.has(i) ? null : e.title))
-    .filter(Boolean);
 
-  const truePositives = matchedExtracted.size;
-  const precision = extracted.length > 0 ? truePositives / extracted.length : 0;
-  const recall = truthBooks.length > 0 ? truePositives / truthBooks.length : 0;
-  const meanConfidence = extracted.length
-    ? extracted.reduce((s, b) => s + (b.confidence ?? 0), 0) / extracted.length
-    : 0;
+  const avg = (k) => trials.reduce((s, t) => s + t[k], 0) / trials.length;
+  const min = (k) => Math.min(...trials.map((t) => t[k]));
+  const max = (k) => Math.max(...trials.map((t) => t[k]));
+
+  // For the headline extra/missed lists, take the first trial's
+  // (most recent) — but include all per-trial detail so the user can
+  // see run-to-run variance when N>1.
+  const headline = trials[0];
 
   return {
     photo: photoFile,
     status: "scored",
+    trials: trials.length,
     truth_count: truthBooks.length,
-    extracted_count: extracted.length,
-    matched: truePositives,
-    precision: Number(precision.toFixed(3)),
-    recall: Number(recall.toFixed(3)),
-    mean_confidence: Number(meanConfidence.toFixed(3)),
-    model: extraction.model,
-    escalated,
-    extra,
-    missed,
+    extracted_count: headline.extracted_count,
+    matched: headline.matched,
+    precision: Number(avg("precision").toFixed(3)),
+    recall: Number(avg("recall").toFixed(3)),
+    mean_confidence: Number(avg("mean_confidence").toFixed(3)),
+    precision_min: Number(min("precision").toFixed(3)),
+    precision_max: Number(max("precision").toFixed(3)),
+    recall_min: Number(min("recall").toFixed(3)),
+    recall_max: Number(max("recall").toFixed(3)),
+    model: headline.model,
+    escalated: trials.some((t) => t.escalated),
+    extra: headline.extra,
+    missed: headline.missed,
+    extra_detail: headline.extra_detail,
+    // When N>1, dump per-trial extras/missed so variance is visible.
+    per_trial: trials.length > 1
+      ? trials.map((t, i) => ({
+          trial: i + 1,
+          precision: Number(t.precision.toFixed(3)),
+          recall: Number(t.recall.toFixed(3)),
+          extra: t.extra,
+          missed: t.missed,
+        }))
+      : undefined,
   };
 }
 
@@ -332,8 +388,12 @@ for (const p of photos) {
         `oversized (${(r.bytes / 1024 / 1024).toFixed(1)} MB > ${r.limit / 1024 / 1024} MB), skipping. Re-save the photo smaller and re-run.`,
       );
     } else {
+      const range =
+        r.trials > 1
+          ? ` (avg of ${r.trials}, R range ${r.recall_min}-${r.recall_max})`
+          : "";
       console.log(
-        `P=${r.precision} R=${r.recall} conf=${r.mean_confidence} (${r.matched}/${r.truth_count}, +${r.extra.length} extra)${r.escalated ? " [opus]" : ""}`,
+        `P=${r.precision} R=${r.recall} conf=${r.mean_confidence}${range}${r.escalated ? " [opus]" : ""}`,
       );
     }
   } catch (err) {
