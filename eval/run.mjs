@@ -128,10 +128,20 @@ function titleCompatible(a, b) {
   // boundaries — otherwise "X" in "Xenophon" would spuriously match).
   if (` ${e} `.includes(` ${t} `) || ` ${t} `.includes(` ${e} `)) return true;
 
-  // 2. 4+ char token overlap.
+  // 2. 4+ char token overlap — require ≥50% of the smaller side's
+  // 4+ char tokens to overlap. The previous version returned true on
+  // any single token overlap, which mis-paired "Constructing the
+  // American Past..." with "Sources of the American Social Tradition"
+  // on a lone "american". Pale Fire / Pale Fire: A Poem still match
+  // (2 of 2), but unrelated titles sharing one stop-token-ish word
+  // don't.
   const tTokens = tokensFour(t);
-  for (const tok of e.split(" ")) {
-    if (tok.length >= 4 && tTokens.has(tok)) return true;
+  const eTokens = tokensFour(e);
+  if (tTokens.size > 0 && eTokens.size > 0) {
+    const minSize = Math.min(tTokens.size, eTokens.size);
+    let overlap = 0;
+    for (const tok of tTokens) if (eTokens.has(tok)) overlap++;
+    if (overlap / minSize >= 0.5) return true;
   }
 
   // 3. Letter-only subsequence in either direction.
@@ -226,8 +236,19 @@ function scoreTrial(extraction, truthBooks) {
     .filter(Boolean);
 
   const truePositives = matchedExtracted.size;
-  const precision = extracted.length > 0 ? truePositives / extracted.length : 0;
-  const recall = truthBooks.length > 0 ? truePositives / truthBooks.length : 0;
+  // Empty-truth photos test "does the model correctly NOT extract from
+  // this image" (e.g., a shelf of vinyl that isn't books). They're not
+  // book-extraction quality tests, so they get vacuous-true recall and
+  // a precision based on whether the model returned anything at all.
+  const emptyTruth = truthBooks.length === 0;
+  const precision = emptyTruth
+    ? extracted.length === 0
+      ? 1
+      : 0
+    : extracted.length > 0
+      ? truePositives / extracted.length
+      : 0;
+  const recall = emptyTruth ? 1 : truePositives / truthBooks.length;
   const meanConfidence = extracted.length
     ? extracted.reduce((s, b) => s + (b.confidence ?? 0), 0) / extracted.length
     : 0;
@@ -403,12 +424,26 @@ for (const p of photos) {
 }
 
 const scored = results.filter((r) => r.status === "scored");
-if (scored.length > 0) {
-  const avgP = scored.reduce((s, r) => s + r.precision, 0) / scored.length;
-  const avgR = scored.reduce((s, r) => s + r.recall, 0) / scored.length;
-  const avgC = scored.reduce((s, r) => s + r.mean_confidence, 0) / scored.length;
+// Empty-truth photos (model-knows-not-to-extract tests) live separately
+// from the book-extraction summary so a 34-album vinyl photo doesn't
+// drag the headline P/R numbers down.
+const bookPhotos = scored.filter((r) => r.truth_count > 0);
+const phantomPhotos = scored.filter((r) => r.truth_count === 0);
+if (bookPhotos.length > 0) {
+  const avgP = bookPhotos.reduce((s, r) => s + r.precision, 0) / bookPhotos.length;
+  const avgR = bookPhotos.reduce((s, r) => s + r.recall, 0) / bookPhotos.length;
+  const avgC = bookPhotos.reduce((s, r) => s + r.mean_confidence, 0) / bookPhotos.length;
   console.log(
-    `\nSummary: P=${avgP.toFixed(3)}  R=${avgR.toFixed(3)}  conf=${avgC.toFixed(3)}  (${scored.length} photos)`,
+    `\nSummary: P=${avgP.toFixed(3)}  R=${avgR.toFixed(3)}  conf=${avgC.toFixed(3)}  (${bookPhotos.length} book photos)`,
+  );
+}
+if (phantomPhotos.length > 0) {
+  const phantomTotal = phantomPhotos.reduce(
+    (s, r) => s + (r.extracted_count ?? 0),
+    0,
+  );
+  console.log(
+    `Phantom test: ${phantomTotal} false extractions across ${phantomPhotos.length} non-book photo(s).`,
   );
 }
 

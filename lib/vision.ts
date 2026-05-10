@@ -16,7 +16,7 @@ For every distinct physical book in the image, return a JSON entry with:
 
 - "title": string. The book's title as printed on the spine. Preserve punctuation, capitalization, and intentional cover styling (asterisk-censored profanity stays as asterisks). If a subtitle is also printed, include it after a colon. If the cover prominently shows the author's name as a separate line, the author goes in "author" — do NOT concatenate the author into the title. If a single letter is partially obscured, prefer the most likely letter from real-world title context (a partially-obscured "Free" is far more likely than "Far"); but never invent words you cannot see at least the first and last letter of. Library shelf stickers go in "spine_classification", not here.
 
-- "author": string or null. The author(s) as printed on the spine or cover. Multiple authors join with " / ". Use null when no author is visible. Library shelf stickers go in "spine_classification", not here.
+- "author": string or null. The author(s) as printed on the SAME spine as the title. The author belongs to ONLY the spine that physically carries it — never carry an author from a neighboring book. If the spine you are reading does not show an author (some books print only the title; some printings put the author on the cover but not the spine), return null. Multiple authors join with " / ". Library shelf stickers go in "spine_classification", not here.
 
 - "visible_isbn": string or null. Only fill this when you can clearly read the digits of an ISBN or decode a printed barcode. Otherwise null.
 
