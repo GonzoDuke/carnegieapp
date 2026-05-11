@@ -94,7 +94,7 @@ export default async function BatchDetailPage({
     <>
       <TopBar />
 
-      <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6">
+      <main className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6">
         <Link
           href="/"
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors"
