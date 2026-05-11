@@ -85,6 +85,12 @@ export default function AboutPage() {
           </Card>
         </section>
 
+        {/* Printer's-mark footer — modeled on the colophon endline of a
+            printed book. Carries the IP statement without resorting to a
+            legalistic block. */}
+        <p className="text-muted-foreground text-center text-xs italic">
+          Made in {new Date().getFullYear()} by Jonathan Kelly. © All rights reserved.
+        </p>
       </main>
     </>
   );
