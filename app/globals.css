@@ -49,25 +49,28 @@
 }
 
 :root {
-  /* Warm & literary: cream/sepia surfaces, deep navy-ink text,
-     amber/gold primary. Restrained saturation. */
-  --background: oklch(0.975 0.012 88);
+  /* Warm & literary: cream-paper background with elevated cards
+     floating above it. The bg sits noticeably below pure white so the
+     page reads as paper rather than bleached printer-stock; cards stay
+     bright so they visibly float, building depth on every screen.
+     Borders deepen to match the warmer bg. */
+  --background: oklch(0.92 0.03 80);
   --foreground: oklch(0.24 0.05 250);
-  --card: oklch(0.985 0.014 85);
+  --card: oklch(0.98 0.018 82);
   --card-foreground: oklch(0.24 0.05 250);
-  --popover: oklch(0.985 0.014 85);
+  --popover: oklch(0.98 0.018 82);
   --popover-foreground: oklch(0.24 0.05 250);
   --primary: oklch(0.62 0.135 70);
   --primary-foreground: oklch(0.99 0.005 90);
-  --secondary: oklch(0.93 0.022 80);
+  --secondary: oklch(0.91 0.03 78);
   --secondary-foreground: oklch(0.24 0.05 250);
-  --muted: oklch(0.94 0.014 85);
+  --muted: oklch(0.9 0.025 78);
   --muted-foreground: oklch(0.46 0.04 250);
-  --accent: oklch(0.92 0.035 75);
+  --accent: oklch(0.9 0.04 76);
   --accent-foreground: oklch(0.24 0.05 250);
   --destructive: oklch(0.55 0.22 28);
-  --border: oklch(0.88 0.022 78);
-  --input: oklch(0.88 0.022 78);
+  --border: oklch(0.84 0.028 76);
+  --input: oklch(0.84 0.028 76);
   --ring: oklch(0.62 0.135 70);
   --chart-1: oklch(0.62 0.135 70);
   --chart-2: oklch(0.5 0.13 165);
@@ -75,13 +78,13 @@
   --chart-4: oklch(0.55 0.22 28);
   --chart-5: oklch(0.45 0.04 250);
   --radius: 0.625rem;
-  --sidebar: oklch(0.97 0.014 85);
+  --sidebar: oklch(0.96 0.022 82);
   --sidebar-foreground: oklch(0.24 0.05 250);
   --sidebar-primary: oklch(0.62 0.135 70);
   --sidebar-primary-foreground: oklch(0.99 0.005 90);
-  --sidebar-accent: oklch(0.92 0.035 75);
+  --sidebar-accent: oklch(0.9 0.04 76);
   --sidebar-accent-foreground: oklch(0.24 0.05 250);
-  --sidebar-border: oklch(0.88 0.022 78);
+  --sidebar-border: oklch(0.84 0.028 76);
   --sidebar-ring: oklch(0.62 0.135 70);
 }
 
