@@ -177,7 +177,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   if (!result && book.title) {
-    const titleHit = await lookupByTitle(book.title, book.authors[0] ?? null);
+    // Join all authors into one hint so the guardrail inside lookupByTitle
+    // tokenizes across every name (e.g. a co-authored book stays matchable
+    // when the provider record happens to list just one co-author).
+    const authorHint = book.authors.length > 0 ? book.authors.join(" / ") : null;
+    const titleHit = await lookupByTitle(book.title, authorHint);
     if (titleHit) {
       result = titleHit;
       resultSource = titleHit.source;
@@ -186,21 +190,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   const redirectUrl = new URL(`/batches/${id}`, request.url);
-
-  // Title-search guardrail: a generic title (e.g. "The Magicians") can hit
-  // a book by a different author. If the existing book already has authors
-  // and they don't share a meaningful token with the lookup result,
-  // assume wrong-book and treat as a miss rather than letting the result
-  // leak into ANY field of the existing row.
-  if (
-    result &&
-    usedTitleSearch &&
-    book.authors.length > 0 &&
-    !authorsLikelyMatch(book.authors, result.authors)
-  ) {
-    result = null;
-    resultSource = null;
-  }
 
   if (!result) {
     log("book.action", {
@@ -272,25 +261,6 @@ function isPlaceholderTitle(title: string | null | undefined): boolean {
   if (!title) return true;
   if (/^Untitled \((ISBN|LCCN) /i.test(title)) return true;
   if (title === "Scanned book (lookup failed)") return true;
-  return false;
-}
-
-// Loose author-name overlap check. Tokenizes both sides into words 4+
-// characters long (catches surnames, drops initials and articles) and
-// returns true if any token appears on both sides. Lenient enough to
-// match "Frank Herbert" with "Herbert, Frank P." but strict enough to
-// reject "Frank Herbert" vs. "Some Other Author."
-function authorsLikelyMatch(existing: string[], incoming: string[]): boolean {
-  if (existing.length === 0 || incoming.length === 0) return true;
-  const tokenize = (s: string): Set<string> =>
-    new Set(s.toLowerCase().match(/\b[a-z]{4,}\b/g) ?? []);
-  const left = new Set<string>();
-  for (const e of existing) for (const t of tokenize(e)) left.add(t);
-  for (const i of incoming) {
-    for (const t of tokenize(i)) {
-      if (left.has(t)) return true;
-    }
-  }
   return false;
 }
 

@@ -6,6 +6,7 @@ import { searchOpenLibraryByTitle } from "./openlibrary.ts";
 import { searchIsbndbByTitle } from "./isbndb.ts";
 import { lookupByIsbn } from "./index.ts";
 import { isAcceptable } from "./types.ts";
+import { authorsLikelyMatch } from "./match.ts";
 
 // Title+author search lookup. Spine photos almost never expose an ISBN
 // directly, so this is the main path that turns Claude's vision-extracted
@@ -74,6 +75,15 @@ export async function lookupByTitle(
     ordered.find((r): r is LookupResult => !!r) ??
     null;
   if (!candidate) return null;
+
+  // Author-overlap guardrail. A generic title ("America", "The Magicians",
+  // "Reality+") can title-search to a completely different book with a
+  // completely different author. If the caller gave us an author hint and
+  // the candidate's authors share no token with it, treat as a miss
+  // rather than ship the wrong book downstream.
+  if (author && author.trim() && !authorsLikelyMatch([author], candidate.authors)) {
+    return null;
+  }
 
   // Cascade: when we have an ISBN, run the full multi-provider chain so we
   // get LCC, descriptions borrowed across providers, multi-source covers,
