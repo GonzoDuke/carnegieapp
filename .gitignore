@@ -46,6 +46,8 @@ next-env.d.ts
 # Local-only operator notes (user passcodes, recovery commands, etc.)
 USERS.md
 JMK.md
+TESTER_GUIDE.md
+COSTS.md
 
 # Vision eval harness — local photos, truth labels, and baselines.
 # .gitkeep files in each folder are tracked so a fresh clone has the
