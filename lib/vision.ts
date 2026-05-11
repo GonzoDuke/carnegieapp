@@ -37,7 +37,10 @@ Each physical book on the shelf gets exactly one entry. Two physical copies of t
 
 Skip:
 - Decorative objects, knick-knacks, picture frames, plants.
+- Non-book media: vinyl records, CD / DVD / Blu-ray cases, video games, magazines, three-ring binders. These often shelve alongside books and have spine-like geometry — but never catalog them as books.
 - Books where the spine is so obscured you cannot read more than a single letter or partial word.
+
+If the image contains only non-book media (e.g. a wall of vinyl records, a DVD rack), return an empty books array.
 
 Return your output by calling the report_books tool. Each detected book becomes one entry in the books array.
 

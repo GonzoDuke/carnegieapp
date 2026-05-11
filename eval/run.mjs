@@ -9,7 +9,9 @@
 //   npm run eval:vision
 //   npm run eval:vision -- --strict
 //   npm run eval:vision -- --photo=<basename>
+//   npm run eval:vision -- --photos=a,b,c       # regression subset
 //   npm run eval:vision -- --escalate          # also run Opus pass
+//   npm run eval:vision -- --no-baseline-write # don't overwrite baseline.json
 //
 // (lib/vision.ts has no relative imports, so Node's strip-types loader
 // resolves it cleanly. The lookup chain has extensionless `.ts` imports
@@ -29,7 +31,11 @@ const args = parseArgs(process.argv.slice(2));
 const escalateFlag = args.escalate ?? false;
 const strictFlag = args.strict ?? false;
 const photoFilter = args.photo ?? null;
+const photosFilter = args.photos
+  ? new Set(args.photos.split(",").map((s) => s.trim()).filter(Boolean))
+  : null;
 const repeatCount = Math.max(1, parseInt(args.repeat ?? "1", 10) || 1);
+const writeBaseline = !args["no-baseline-write"];
 
 function parseArgs(argv) {
   const out = {};
@@ -197,7 +203,13 @@ function listPhotos() {
   if (!existsSync(PHOTOS_DIR)) return [];
   return readdirSync(PHOTOS_DIR)
     .filter((f) => pickMediaType(f) !== null)
-    .filter((f) => !photoFilter || basename(f, extname(f)) === photoFilter)
+    .filter((f) => {
+      if (!photoFilter && !photosFilter) return true;
+      const base = basename(f, extname(f));
+      if (photoFilter && base === photoFilter) return true;
+      if (photosFilter && photosFilter.has(base)) return true;
+      return false;
+    })
     .sort();
 }
 
@@ -464,15 +476,19 @@ if (regressions && regressions.length > 0) {
   }
 }
 
-writeFileSync(
-  BASELINE_PATH,
-  JSON.stringify(
-    {
-      generated_at: new Date().toISOString(),
-      results,
-    },
-    null,
-    2,
-  ),
-);
-console.log(`\nBaseline written to eval/baseline.json`);
+if (writeBaseline) {
+  writeFileSync(
+    BASELINE_PATH,
+    JSON.stringify(
+      {
+        generated_at: new Date().toISOString(),
+        results,
+      },
+      null,
+      2,
+    ),
+  );
+  console.log(`\nBaseline written to eval/baseline.json`);
+} else {
+  console.log(`\nBaseline NOT written (--no-baseline-write).`);
+}
