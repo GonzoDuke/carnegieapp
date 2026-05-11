@@ -1,6 +1,6 @@
-import type { LookupResult } from "./types";
-import { cleanSubjectTags } from "./subjects";
-import { cleanDescription } from "./description";
+import type { LookupResult } from "./types.ts";
+import { cleanSubjectTags } from "./subjects.ts";
+import { cleanDescription } from "./description.ts";
 
 const BASE_URL = "https://api2.isbndb.com";
 const TIMEOUT_MS = 4000;

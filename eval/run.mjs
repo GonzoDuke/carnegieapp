@@ -11,16 +11,19 @@
 //   npm run eval:vision -- --photo=<basename>
 //   npm run eval:vision -- --photos=a,b,c       # regression subset
 //   npm run eval:vision -- --escalate          # also run Opus pass
+//   npm run eval:vision -- --with-lookup       # also grade lookup chain
 //   npm run eval:vision -- --no-baseline-write # don't overwrite baseline.json
 //
-// (lib/vision.ts has no relative imports, so Node's strip-types loader
-// resolves it cleanly. The lookup chain has extensionless `.ts` imports
-// throughout that the loader chokes on without `tsx`, so end-to-end
-// metadata testing is intentionally out of this scaffold; add `tsx` and
-// a `--with-lookup` flag if you want it later.)
+// With --with-lookup, the harness also grades the lookup chain: for every
+// matched vision book it runs the production lookup path (ISBN if vision
+// saw one; else title+author) and compares the returned ISBN to the
+// truth ISBN. This costs real API calls per match — ~$0.01 per ISBNdb
+// hit — so reserve it for measurement passes, not every iteration.
 import { readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
 import { extname, join, basename } from "node:path";
 import { extractBooksFromImage, OPUS_MODEL } from "../lib/vision.ts";
+import { lookupByIsbn } from "../lib/lookup/index.ts";
+import { lookupByTitle } from "../lib/lookup/title.ts";
 
 const ROOT = process.cwd();
 const PHOTOS_DIR = join(ROOT, "eval", "photos");
@@ -36,6 +39,7 @@ const photosFilter = args.photos
   : null;
 const repeatCount = Math.max(1, parseInt(args.repeat ?? "1", 10) || 1);
 const writeBaseline = !args["no-baseline-write"];
+const withLookupFlag = args["with-lookup"] ?? false;
 
 function parseArgs(argv) {
   const out = {};
@@ -233,12 +237,19 @@ function scoreTrial(extraction, truthBooks) {
   // Greedy 1:1 matching from truth → extracted.
   const matchedExtracted = new Set();
   const missed = [];
+  // matchedPairs links each successful truth→extracted match back to the
+  // original VisionBook so a downstream lookup pass can use the same
+  // ISBN/title/author the production route would feed to the chain.
+  const matchedPairs = [];
   for (const t of truthBooks) {
     const idx = extracted.findIndex(
       (e, i) => !matchedExtracted.has(i) && bookMatch(t, e),
     );
     if (idx === -1) missed.push(t.title);
-    else matchedExtracted.add(idx);
+    else {
+      matchedExtracted.add(idx);
+      matchedPairs.push({ truth: t, visionBook: extraction.books[idx] });
+    }
   }
   const extra = extracted
     .map((e, i) => (matchedExtracted.has(i) ? null : e.title))
@@ -274,6 +285,57 @@ function scoreTrial(extraction, truthBooks) {
     extra,
     missed,
     extra_detail: extraDetail,
+    matched_pairs: matchedPairs,
+  };
+}
+
+// Strip non-digits and compare ISBN tails. ISBN-13 = 978/979 + ISBN-10[:-1]
+// (different check digit) — the trailing 9 digits before the check digit
+// are common to both forms, so comparing on those is a reliable
+// equivalence check that handles 10↔13 cross-form comparisons.
+function isbnsEqual(a, b) {
+  if (!a || !b) return false;
+  const da = String(a).replace(/[^0-9Xx]/g, "");
+  const db = String(b).replace(/[^0-9Xx]/g, "");
+  if (!da || !db) return false;
+  const tail = (s) => (s.length >= 10 ? s.slice(-10, -1) : s);
+  return tail(da) === tail(db);
+}
+
+// Run the production lookup path for one matched (truth, vision) pair.
+// Mirrors enrichDetected() in app/api/batches/[id]/vision/route.ts:
+// ISBN path if the model spotted one, else title+author search.
+async function runLookupForPair({ truth, visionBook }) {
+  const truthIsbn = truth.ISBN ?? truth.isbn ?? null;
+  const visionIsbn = visionBook.visible_isbn;
+  let result = null;
+  let error = null;
+  try {
+    if (visionIsbn) {
+      const outcome = await lookupByIsbn(visionIsbn);
+      result = outcome.result;
+    } else {
+      result = await lookupByTitle(visionBook.title, visionBook.author);
+    }
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+  }
+  // Classify the outcome — used for aggregate metrics and the failure list.
+  let verdict;
+  if (!result) verdict = "no_result";
+  else if (!truthIsbn) verdict = "no_truth_isbn"; // got data but can't verify
+  else if (isbnsEqual(result.isbn13 ?? result.isbn10, truthIsbn)) verdict = "correct";
+  else verdict = "wrong_isbn";
+  return {
+    truth_title: truth.title,
+    truth_isbn: truthIsbn,
+    vision_title: visionBook.title,
+    vision_isbn: visionIsbn,
+    result_title: result?.title ?? null,
+    result_isbn: result?.isbn13 ?? result?.isbn10 ?? null,
+    result_source: result?.source ?? null,
+    verdict,
+    error,
   };
 }
 
@@ -338,7 +400,14 @@ async function runOnePhoto(photoFile) {
   for (let i = 0; i < repeatCount; i++) {
     const { extraction, escalated } = await runOneTrial(base64, mediaType);
     const score = scoreTrial(extraction, truthBooks);
-    trials.push({ ...score, model: extraction.model, escalated });
+    let lookups = null;
+    if (withLookupFlag && score.matched_pairs.length > 0) {
+      lookups = [];
+      for (const pair of score.matched_pairs) {
+        lookups.push(await runLookupForPair(pair));
+      }
+    }
+    trials.push({ ...score, model: extraction.model, escalated, lookups });
   }
 
   const avg = (k) => trials.reduce((s, t) => s + t[k], 0) / trials.length;
@@ -349,6 +418,40 @@ async function runOnePhoto(photoFile) {
   // (most recent) — but include all per-trial detail so the user can
   // see run-to-run variance when N>1.
   const headline = trials[0];
+
+  // Aggregate lookup outcomes across all trials. The denominator is total
+  // matched-pair attempts across trials so coverage and ISBN accuracy
+  // reflect the realized lookup volume, not a per-trial average.
+  let lookupAgg = null;
+  if (withLookupFlag) {
+    const allLookups = trials.flatMap((t) => t.lookups ?? []);
+    const attempted = allLookups.length;
+    const withResult = allLookups.filter((l) => l.verdict !== "no_result").length;
+    const verifiable = allLookups.filter(
+      (l) => l.verdict === "correct" || l.verdict === "wrong_isbn",
+    );
+    const correct = verifiable.filter((l) => l.verdict === "correct").length;
+    lookupAgg = {
+      attempted,
+      coverage: attempted > 0 ? Number((withResult / attempted).toFixed(3)) : null,
+      verifiable: verifiable.length,
+      correct,
+      isbn_accuracy:
+        verifiable.length > 0 ? Number((correct / verifiable.length).toFixed(3)) : null,
+      failures: allLookups
+        .filter((l) => l.verdict === "no_result" || l.verdict === "wrong_isbn")
+        .map((l) => ({
+          truth_title: l.truth_title,
+          truth_isbn: l.truth_isbn,
+          vision_title: l.vision_title,
+          vision_isbn: l.vision_isbn,
+          result_title: l.result_title,
+          result_isbn: l.result_isbn,
+          result_source: l.result_source,
+          verdict: l.verdict,
+        })),
+    };
+  }
 
   return {
     photo: photoFile,
@@ -369,6 +472,7 @@ async function runOnePhoto(photoFile) {
     extra: headline.extra,
     missed: headline.missed,
     extra_detail: headline.extra_detail,
+    lookup: lookupAgg,
     // When N>1, dump per-trial extras/missed so variance is visible.
     per_trial: trials.length > 1
       ? trials.map((t, i) => ({
@@ -431,8 +535,11 @@ for (const p of photos) {
         r.trials > 1
           ? ` (avg of ${r.trials}, R range ${r.recall_min}-${r.recall_max})`
           : "";
+      const lookupSummary = r.lookup
+        ? `  Lookup cov=${r.lookup.coverage ?? "n/a"} isbn=${r.lookup.isbn_accuracy ?? "n/a"} (${r.lookup.correct}/${r.lookup.verifiable} verifiable, ${r.lookup.attempted} attempted)`
+        : "";
       console.log(
-        `P=${r.precision} R=${r.recall} conf=${r.mean_confidence}${range}${r.escalated ? " [opus]" : ""}`,
+        `P=${r.precision} R=${r.recall} conf=${r.mean_confidence}${range}${r.escalated ? " [opus]" : ""}${lookupSummary}`,
       );
     }
   } catch (err) {
@@ -463,6 +570,27 @@ if (phantomPhotos.length > 0) {
   console.log(
     `Phantom test: ${phantomTotal} false extractions across ${phantomPhotos.length} non-book photo(s).`,
   );
+}
+
+if (withLookupFlag) {
+  const withLookup = bookPhotos.filter((r) => r.lookup);
+  if (withLookup.length > 0) {
+    const totals = withLookup.reduce(
+      (acc, r) => {
+        acc.attempted += r.lookup.attempted;
+        acc.withResult += Math.round((r.lookup.coverage ?? 0) * r.lookup.attempted);
+        acc.verifiable += r.lookup.verifiable;
+        acc.correct += r.lookup.correct;
+        return acc;
+      },
+      { attempted: 0, withResult: 0, verifiable: 0, correct: 0 },
+    );
+    const cov = totals.attempted > 0 ? totals.withResult / totals.attempted : 0;
+    const isbn = totals.verifiable > 0 ? totals.correct / totals.verifiable : 0;
+    console.log(
+      `Lookup:  coverage=${cov.toFixed(3)}  isbn_accuracy=${isbn.toFixed(3)}  (${totals.correct}/${totals.verifiable} verifiable, ${totals.attempted} attempted across ${withLookup.length} photos)`,
+    );
+  }
 }
 
 const regressions = compareBaseline(results);

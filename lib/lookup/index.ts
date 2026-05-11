@@ -1,11 +1,11 @@
-import { normalizeIsbn, type NormalizedIsbn } from "./isbn";
-import { lookupIsbndb } from "./isbndb";
-import { lookupOpenLibrary, lookupOpenLibrarySearch } from "./openlibrary";
-import { lookupGoogleBooks } from "./googlebooks";
-import { isAcceptable, type LookupResult, type LookupSource } from "./types";
+import { normalizeIsbn, type NormalizedIsbn } from "./isbn.ts";
+import { lookupIsbndb } from "./isbndb.ts";
+import { lookupOpenLibrary, lookupOpenLibrarySearch } from "./openlibrary.ts";
+import { lookupGoogleBooks } from "./googlebooks.ts";
+import { isAcceptable, type LookupResult, type LookupSource } from "./types.ts";
 
-export type { LookupResult, LookupSource } from "./types";
-export { normalizeIsbn } from "./isbn";
+export type { LookupResult, LookupSource } from "./types.ts";
+export { normalizeIsbn } from "./isbn.ts";
 
 export type LookupAttempt = {
   source: LookupSource;

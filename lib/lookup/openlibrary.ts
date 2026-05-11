@@ -1,7 +1,7 @@
-import type { LookupResult } from "./types";
-import type { NormalizedIsbn } from "./isbn";
-import { cleanSubjectTags } from "./subjects";
-import { cleanDescription } from "./description";
+import type { LookupResult } from "./types.ts";
+import type { NormalizedIsbn } from "./isbn.ts";
+import { cleanSubjectTags } from "./subjects.ts";
+import { cleanDescription } from "./description.ts";
 
 const BASE_URL = "https://openlibrary.org";
 const TIMEOUT_MS = 4000;

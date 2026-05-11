@@ -1,11 +1,11 @@
-import type { LookupResult } from "./types";
-import { pickGoogleBooksCover } from "./googlebooks";
-import { cleanSubjectTags } from "./subjects";
-import { cleanDescription } from "./description";
-import { searchOpenLibraryByTitle } from "./openlibrary";
-import { searchIsbndbByTitle } from "./isbndb";
-import { lookupByIsbn } from "./index";
-import { isAcceptable } from "./types";
+import type { LookupResult } from "./types.ts";
+import { pickGoogleBooksCover } from "./googlebooks.ts";
+import { cleanSubjectTags } from "./subjects.ts";
+import { cleanDescription } from "./description.ts";
+import { searchOpenLibraryByTitle } from "./openlibrary.ts";
+import { searchIsbndbByTitle } from "./isbndb.ts";
+import { lookupByIsbn } from "./index.ts";
+import { isAcceptable } from "./types.ts";
 
 // Title+author search lookup. Spine photos almost never expose an ISBN
 // directly, so this is the main path that turns Claude's vision-extracted

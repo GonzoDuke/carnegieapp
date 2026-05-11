@@ -7,9 +7,9 @@
 // 1–3 letter prefix (e.g. "n", "sh", "no") and sometimes hyphens. We
 // normalize by stripping non-alphanumeric chars before sending — the OL
 // API is forgiving but cleaner input gets cleaner cache hits.
-import type { LookupResult } from "./types";
-import { cleanSubjectTags } from "./subjects";
-import { cleanDescription } from "./description";
+import type { LookupResult } from "./types.ts";
+import { cleanSubjectTags } from "./subjects.ts";
+import { cleanDescription } from "./description.ts";
 
 const BASE_URL = "https://openlibrary.org";
 const TIMEOUT_MS = 4000;
