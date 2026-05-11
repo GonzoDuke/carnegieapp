@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { Archive, Info, LogOut } from "lucide-react";
+import { Archive, Info, LogOut, Map } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { getCurrentUserId } from "@/lib/auth";
 import BrandMark from "@/components/BrandMark";
@@ -73,6 +73,17 @@ export default async function TopBar() {
             })}
           >
             <Archive className="size-4" />
+          </Link>
+          <Link
+            href="/guide"
+            title="Guide"
+            className={buttonVariants({
+              variant: "ghost",
+              size: "icon-sm",
+              className: "text-muted-foreground",
+            })}
+          >
+            <Map className="size-4" />
           </Link>
           <Link
             href="/about"

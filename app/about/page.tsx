@@ -142,6 +142,16 @@ export default function AboutPage() {
           </Card>
         </section>
 
+        <p className="text-muted-foreground text-center text-sm">
+          Need a quick reference? See the{" "}
+          <Link
+            href="/guide"
+            className="text-foreground underline underline-offset-2 hover:text-primary"
+          >
+            Guide
+          </Link>
+          .
+        </p>
       </main>
     </>
   );
