@@ -182,7 +182,7 @@ export default async function HomePage() {
     <>
       <TopBar />
 
-      <main className="mx-auto w-full max-w-7xl space-y-12 px-4 py-8 sm:py-10">
+      <main className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:space-y-12 sm:py-10">
         {/* In-flight status — big serif statement of work state, plus a
             "where you left off" link to the most recently active batch.
             This replaces the old welcome hero / 4-up stat tiles; this
@@ -196,7 +196,7 @@ export default async function HomePage() {
             <CreateBatchDialog />
           </div>
 
-          <h1 className="font-heading text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
+          <h1 className="font-heading text-balance text-3xl font-semibold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
             <span className="tabular-nums">{totalPending}</span>{" "}
             <span className="text-muted-foreground">
               {totalPending === 1 ? "book" : "books"} waiting.
@@ -246,7 +246,7 @@ export default async function HomePage() {
 
         {/* Quick add ISBN — primary single-keystroke entry into a batch. */}
         <section className="space-y-3">
-          <div className="flex items-baseline justify-between">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
             <h2 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
               Quick add
             </h2>
