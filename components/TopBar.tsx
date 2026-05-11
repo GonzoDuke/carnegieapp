@@ -4,7 +4,7 @@ import { Archive, Info, LogOut } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { getCurrentUserId } from "@/lib/auth";
 import BrandMark from "@/components/BrandMark";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
 import SearchBar from "@/components/SearchBar";
 
@@ -63,24 +63,28 @@ export default async function TopBar() {
               {userName}
             </span>
           )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
+          <Link
+            href="/archive"
             title="Archive"
-            className="text-muted-foreground"
-            render={<Link href="/archive" />}
+            className={buttonVariants({
+              variant: "ghost",
+              size: "icon-sm",
+              className: "text-muted-foreground",
+            })}
           >
             <Archive className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
+          </Link>
+          <Link
+            href="/about"
             title="About Carnegie"
-            className="text-muted-foreground"
-            render={<Link href="/about" />}
+            className={buttonVariants({
+              variant: "ghost",
+              size: "icon-sm",
+              className: "text-muted-foreground",
+            })}
           >
             <Info className="size-4" />
-          </Button>
+          </Link>
           <ThemeToggle />
           <form method="POST" action="/api/logout">
             <Button
