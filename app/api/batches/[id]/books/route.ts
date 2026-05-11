@@ -89,8 +89,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     userAuthorList.length > 0 ? userAuthorList : lookup?.authors ?? [];
   const finalPublisher = data.publisher?.trim() || lookup?.publisher || null;
   const finalPubDate = data.pubDate?.trim() || lookup?.pubDate || null;
-  const finalIsbn13 = lookup?.isbn13 || typedIsbn13;
-  const finalIsbn10 = lookup?.isbn10 || typedIsbn10;
+  // User-typed ISBN is authoritative — the chain may return a different
+  // edition's ISBN for the same title, but the user has the book in hand
+  // and gave us this specific identifier. Only fall back to the chain's
+  // ISBN when the user didn't provide one.
+  const finalIsbn13 = typedIsbn13 || lookup?.isbn13 || null;
+  const finalIsbn10 = typedIsbn10 || lookup?.isbn10 || null;
   const finalCoverUrl = lookup?.coverUrl ?? null;
   const finalTags = lookup?.subjects ?? [];
   const finalLcc = lookup?.lcc ?? null;

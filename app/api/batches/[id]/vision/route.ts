@@ -10,7 +10,7 @@ import {
   type VisionBook,
   type VisionExtraction,
 } from "@/lib/vision";
-import { lookupByIsbn } from "@/lib/lookup";
+import { lookupByIsbn, normalizeIsbn } from "@/lib/lookup";
 import { lookupByTitle } from "@/lib/lookup/title";
 import { extractLcc, stripSpineSticker } from "@/lib/lookup/classification";
 import { getBudget, incrementUsage } from "@/lib/vision-budget";
@@ -230,7 +230,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const inserted = await db
     .insert(schema.books)
     .values(
-      enriched.map(({ book, lookup, visionLcc }) => ({
+      enriched.map(({ book, lookup, visionLcc }) => {
+        // Vision-detected ISBN is authoritative — the chain may return a
+        // different-edition record for the same title, but the user
+        // photographed THIS specific copy and the barcode digits are
+        // unambiguous. Only fall back to the chain's ISBN when vision
+        // didn't pick one up.
+        const visionIsbn = normalizeIsbn(book.visible_isbn ?? "");
+        return ({
         ownerId: userId,
         batchId: id,
         source: "vision" as const,
@@ -238,8 +245,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         // because misreads on spines are common and a wrong row in the export
         // is worse than 5 seconds of confirmation.
         status: "pending_review" as const,
-        isbn13: lookup?.isbn13 ?? null,
-        isbn10: lookup?.isbn10 ?? null,
+        isbn13: visionIsbn.isbn13 ?? lookup?.isbn13 ?? null,
+        isbn10: visionIsbn.isbn10 ?? lookup?.isbn10 ?? null,
         title: lookup?.title || book.title,
         authors: lookup?.authors?.length
           ? lookup.authors
@@ -260,7 +267,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           lookupSource: lookup?.source ?? null,
           model: extraction.model,
         },
-      })),
+        });
+      }),
     )
     .returning();
 
