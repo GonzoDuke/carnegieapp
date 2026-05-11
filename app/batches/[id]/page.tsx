@@ -23,7 +23,7 @@ import TopBar from "@/components/TopBar";
 import BooksList from "@/components/BooksList";
 import { getBudget } from "@/lib/vision-budget";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,6 +81,12 @@ export default async function BatchDetailPage({
       b.status === "pending_review" &&
       b.confidence !== null &&
       b.confidence >= BULK_CONFIRM_THRESHOLD,
+  ).length;
+  // Books that would benefit from quick-fill: pending review with no ISBN
+  // yet. With an ISBN they already got a lookup at insert; re-running is
+  // wasted budget.
+  const quickFillCount = books.filter(
+    (b) => b.status === "pending_review" && !b.isbn13 && !b.isbn10,
   ).length;
   const budget = await getBudget(userId);
 
@@ -145,6 +151,15 @@ export default async function BatchDetailPage({
 
               <div className="flex flex-wrap items-center gap-2">
                 <RefreshButton />
+                {quickFillCount > 0 && (
+                  <Link
+                    href={`/batches/${batch.id}/quick-fill`}
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                  >
+                    <Sparkles className="size-4" />
+                    Quick-fill ISBNs ({quickFillCount})
+                  </Link>
+                )}
                 <BulkConfirmButton
                   batchId={batch.id}
                   eligibleCount={bulkEligibleCount}
