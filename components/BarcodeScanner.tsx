@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanBarcode, StopCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { Button } from "@/components/ui/button";
+import BarcodeReader from "@/components/BarcodeReader";
 
 type BarcodeScannerProps = {
   batchId: string;
@@ -13,16 +13,8 @@ type BarcodeScannerProps = {
 
 export default function BarcodeScanner({ batchId }: BarcodeScannerProps) {
   const router = useRouter();
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const scannerRef = useRef<IScannerControls | null>(null);
   const [scanning, setScanning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    return () => {
-      scannerRef.current?.stop();
-    };
-  }, []);
 
   async function postScan(code: string) {
     setIsSubmitting(true);
@@ -70,41 +62,6 @@ export default function BarcodeScanner({ batchId }: BarcodeScannerProps) {
     }
   }
 
-  async function startScan() {
-    if (!videoRef.current) {
-      toast.error("Camera video element is unavailable.");
-      return;
-    }
-
-    const codeReader = new BrowserMultiFormatReader();
-    setScanning(true);
-
-    try {
-      const controls = await codeReader.decodeFromVideoDevice(
-        undefined,
-        videoRef.current,
-        async (result, _error, controls) => {
-          scannerRef.current = controls;
-          if (result?.getText()) {
-            const code = result.getText();
-            controls.stop();
-            setScanning(false);
-            await postScan(code);
-          }
-        },
-      );
-      scannerRef.current = controls;
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Barcode scan failed.");
-      setScanning(false);
-    }
-  }
-
-  function stopScan() {
-    scannerRef.current?.stop();
-    setScanning(false);
-  }
-
   return (
     <div className="space-y-3">
       {scanning ? (
@@ -112,7 +69,7 @@ export default function BarcodeScanner({ batchId }: BarcodeScannerProps) {
           type="button"
           variant="destructive"
           className="h-auto w-full flex-col gap-1 py-4"
-          onClick={stopScan}
+          onClick={() => setScanning(false)}
         >
           <StopCircle className="size-5" />
           <span className="text-sm font-medium">Stop scanning</span>
@@ -122,7 +79,7 @@ export default function BarcodeScanner({ batchId }: BarcodeScannerProps) {
           type="button"
           variant="outline"
           className="h-auto w-full flex-col gap-1 py-4"
-          onClick={startScan}
+          onClick={() => setScanning(true)}
           disabled={isSubmitting}
         >
           {isSubmitting ? (
@@ -139,14 +96,19 @@ export default function BarcodeScanner({ batchId }: BarcodeScannerProps) {
         </Button>
       )}
 
-      <video
-        ref={videoRef}
-        className={`bg-muted h-40 w-full rounded-md object-cover ${
-          scanning ? "block" : "hidden"
-        }`}
-        muted
-        playsInline
-      />
+      {scanning && (
+        <BarcodeReader
+          continuous={false}
+          onScan={async (code) => {
+            setScanning(false);
+            await postScan(code);
+          }}
+          onError={(message) => {
+            toast.error(message);
+            setScanning(false);
+          }}
+        />
+      )}
     </div>
   );
 }
