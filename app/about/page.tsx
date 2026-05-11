@@ -8,29 +8,6 @@ export const metadata = {
   title: "About — Carnegie",
 };
 
-const STEPS: { title: string; body: string }[] = [
-  {
-    title: "Capture",
-    body: "Photograph a shelf, scan a barcode, or type an ISBN. Whichever input the moment allows.",
-  },
-  {
-    title: "Read",
-    body: "Claude Sonnet 4.6 reads the spines. Ambiguous photos auto-escalate to Opus 4.7 — slower and pricier, but more accurate when the book deserves it.",
-  },
-  {
-    title: "Look up",
-    body: "ISBNdb, Open Library, and Google Books are queried in parallel; the best fields from each are merged onto the winner.",
-  },
-  {
-    title: "Confirm",
-    body: "Two clicks per book — one to confirm a real match, one to delete a misread. The pending queue surfaces the lowest-confidence reads first.",
-  },
-  {
-    title: "Export",
-    body: "Confirmed books download as a LibraryThing-compatible CSV when the batch is ready to ship.",
-  },
-];
-
 export default function AboutPage() {
   return (
     <>
@@ -84,40 +61,6 @@ export default function AboutPage() {
           </footer>
         </blockquote>
 
-        <p className="text-foreground text-lg leading-relaxed">
-          A personal-library cataloger. Photograph your shelves, scan
-          barcodes, or type ISBNs — Carnegie reads the spines, looks up
-          the metadata, and walks you out the other side with a clean
-          LibraryThing-compatible CSV.
-        </p>
-
-        <section className="space-y-4">
-          <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
-            How it works
-          </h2>
-          <ol className="space-y-3">
-            {STEPS.map((step, i) => (
-              <li key={step.title}>
-                <Card>
-                  <CardContent className="flex items-start gap-4 p-5">
-                    <span className="bg-primary/10 text-primary ring-primary/20 font-heading flex size-10 shrink-0 items-center justify-center rounded-md text-lg font-semibold tabular-nums ring-1">
-                      {i + 1}
-                    </span>
-                    <div className="min-w-0 space-y-1.5">
-                      <h3 className="font-heading text-lg font-semibold leading-snug">
-                        {step.title}
-                      </h3>
-                      <p className="text-muted-foreground text-base leading-relaxed">
-                        {step.body}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ol>
-        </section>
-
         <section className="space-y-4">
           <h2 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
             Colophon
@@ -142,16 +85,6 @@ export default function AboutPage() {
           </Card>
         </section>
 
-        <p className="text-muted-foreground text-center text-sm">
-          Need a quick reference? See the{" "}
-          <Link
-            href="/guide"
-            className="text-foreground underline underline-offset-2 hover:text-primary"
-          >
-            Guide
-          </Link>
-          .
-        </p>
       </main>
     </>
   );

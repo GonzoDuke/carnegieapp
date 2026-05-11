@@ -33,13 +33,7 @@ export default function GuidePage() {
           <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
             Guide
           </h1>
-          <p className="text-muted-foreground text-sm">
-            Quick reference. For the longer version, see{" "}
-            <Link href="/about" className="underline underline-offset-2">
-              About
-            </Link>
-            .
-          </p>
+          <p className="text-muted-foreground text-sm">Quick reference.</p>
         </header>
 
         {/* Three workflows, one card each. Each card is icon + name + one
