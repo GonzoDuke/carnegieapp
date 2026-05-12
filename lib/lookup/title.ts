@@ -7,6 +7,7 @@ import { searchIsbndbByTitle } from "./isbndb.ts";
 import { lookupByIsbn } from "./index.ts";
 import { isAcceptable } from "./types.ts";
 import { authorsLikelyMatch } from "./match.ts";
+import { normalizeIsbn } from "./isbn.ts";
 
 // Title+author search lookup. Spine photos almost never expose an ISBN
 // directly, so this is the main path that turns Claude's vision-extracted
@@ -62,45 +63,93 @@ export async function lookupByTitle(
     searchOpenLibraryByTitle(title, author),
   ]);
 
-  // Prefer the first acceptable hit that has an ISBN to cascade through.
-  // ISBNdb is preferred (paid + canonical), then GB, then OL.
+  // Provider preference order: ISBNdb > GB > OL. Used both to pick a
+  // candidate when providers agree and to fall back to title-only when
+  // they don't.
   const ordered = [isbndbHit, gbHit, olHit];
   const acceptable = ordered.filter(
     (r): r is LookupResult => isAcceptable(r),
   );
-  const withIsbn = acceptable.find((h) => h.isbn13 || h.isbn10);
-  const candidate =
-    withIsbn ??
-    acceptable[0] ??
-    ordered.find((r): r is LookupResult => !!r) ??
-    null;
-  if (!candidate) return null;
-
-  // Author-overlap guardrail. A generic title ("America", "The Magicians",
-  // "Reality+") can title-search to a completely different book with a
-  // completely different author. If the caller gave us an author hint and
-  // the candidate's authors share no token with it, treat as a miss
-  // rather than ship the wrong book downstream.
-  if (author && author.trim() && !authorsLikelyMatch([author], candidate.authors)) {
-    return null;
+  if (acceptable.length === 0) {
+    // No usable hit at all. Return any non-null so the caller at least
+    // gets a partial — same behavior as before.
+    return ordered.find((r): r is LookupResult => !!r) ?? null;
   }
 
-  // Cascade: when we have an ISBN, run the full multi-provider chain so we
-  // get LCC, descriptions borrowed across providers, multi-source covers,
-  // and the OL search.json LCC-recovery path — same enrichment a scanned
-  // barcode would get. Then merge in any candidate fields the cascade
-  // didn't fill (some providers don't expose covers/publishers in their
-  // ISBN response but their title-search response did).
-  const candidateIsbn = candidate.isbn13 ?? candidate.isbn10;
-  if (candidateIsbn) {
-    const outcome = await lookupByIsbn(candidateIsbn);
+  // Author-overlap guardrail (applied early so we don't waste the
+  // agreement check on a wrong-author hit). If the caller gave an
+  // author hint and no acceptable hit shares a token with it, drop.
+  const authorHint = author?.trim() ? [author] : null;
+  if (authorHint) {
+    const anyAuthorMatch = acceptable.some((h) =>
+      authorsLikelyMatch(authorHint, h.authors),
+    );
+    if (!anyAuthorMatch) return null;
+  }
+
+  // Providers-must-agree gate. ISBN identifies a specific printing; a
+  // title-only search can plausibly return *any* edition. To avoid
+  // silently committing to the wrong edition, only commit an ISBN when
+  // ≥2 providers returned the same one. If they disagree (or only one
+  // returned an ISBN), we keep the best title+author+cover metadata but
+  // null out the ISBN — the row lands in Quick-fill for the user to
+  // supply the correct ISBN from the back cover.
+  const agreedIsbn13 = findAgreedIsbn(acceptable);
+
+  let candidate: LookupResult;
+  if (agreedIsbn13) {
+    // Pick the highest-priority provider that returned the agreed ISBN.
+    candidate =
+      acceptable.find((h) => sameIsbn13(h, agreedIsbn13)) ?? acceptable[0];
+  } else {
+    // No agreement — strip ISBN from whichever record we hand back. The
+    // metadata is still useful; the ISBN would be a guess.
+    candidate = { ...acceptable[0], isbn13: null, isbn10: null };
+  }
+
+  // Cascade only when we have an agreed ISBN — without one, there's
+  // nothing reliable to cascade against.
+  if (agreedIsbn13) {
+    const outcome = await lookupByIsbn(agreedIsbn13);
     if (outcome.result) {
       return mergeFromCandidate(outcome.result, candidate);
     }
   }
 
-  // No usable ISBN to cascade — return the title-search hit as-is.
   return candidate;
+}
+
+// Returns the ISBN-13 that 2+ providers agreed on, or null if no
+// agreement exists. ISBN-10s are normalized to their 978-prefixed
+// 13-form so a provider that returned the 10-form and another that
+// returned the 13-form count as agreeing.
+function findAgreedIsbn(hits: LookupResult[]): string | null {
+  const counts = new Map<string, number>();
+  for (const h of hits) {
+    const key = canonicalIsbn13(h);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const [key, n] of counts) {
+    if (n >= 2) return key;
+  }
+  return null;
+}
+
+function canonicalIsbn13(r: LookupResult): string | null {
+  if (r.isbn13) {
+    const stripped = r.isbn13.replace(/[^0-9]/g, "");
+    if (stripped.length === 13) return stripped;
+  }
+  if (r.isbn10) {
+    const norm = normalizeIsbn(r.isbn10);
+    if (norm.isbn13) return norm.isbn13;
+  }
+  return null;
+}
+
+function sameIsbn13(r: LookupResult, isbn13: string): boolean {
+  return canonicalIsbn13(r) === isbn13;
 }
 
 const MAX_MERGED_SUBJECTS = 5;

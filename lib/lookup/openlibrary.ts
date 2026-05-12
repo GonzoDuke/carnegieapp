@@ -4,7 +4,12 @@ import { cleanSubjectTags } from "./subjects.ts";
 import { cleanDescription } from "./description.ts";
 
 const BASE_URL = "https://openlibrary.org";
-const TIMEOUT_MS = 4000;
+// 8s, up from 4s. Open Library's search.json and bibkeys endpoints have
+// been consistently slow lately and were timing out on most requests at
+// 4s. Bumping to 8s lets OL contribute its LCC values (the only provider
+// that has them) more often. The chain still races OL in parallel with
+// ISBNdb + GB, so this only matters when OL is the slow one.
+const TIMEOUT_MS = 8000;
 
 type OlBook = {
   title?: string;
