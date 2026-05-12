@@ -11,7 +11,7 @@ import { log, requestIdFrom } from "@/lib/log";
 // fat-fingers the passcode 3-4 times in a row, strict enough that
 // brute force is impractical even at 100ms per scrypt.
 const MAX_FAILS_PER_WINDOW = 10;
-const WINDOW_MINUTES = 10;
+const WINDOW_MINUTES = 5;
 // 7 days. Was 30 — shorter session reduces the blast radius if a
 // cookie ever leaks (lost device, shared computer, etc.). Casual
 // re-login once a week is acceptable friction.
