@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   index,
   integer,
@@ -95,6 +96,41 @@ export const books = pgTable(
   (t) => [index("books_owner_idx").on(t.ownerId)],
 );
 
+// One row per vision-photo upload. Lets the review UI show the user the
+// original shelf photo so they can spot books vision missed without
+// standing in front of the shelf. Blob is deleted when the batch is
+// exported (see export.csv route); the row is dropped at the same time
+// via cascade on batch delete.
+export const batchUploads = pgTable(
+  "batch_uploads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    batchId: uuid("batch_id")
+      .notNull()
+      .references(() => batches.id, { onDelete: "cascade" }),
+    // Vercel Blob URL (publicly fetchable but unguessable). For a two-user
+    // app this is the right privacy tier; would need signed URLs to share
+    // beyond that.
+    blobUrl: text("blob_url").notNull(),
+    // Path-within-blob, needed for del() at export time.
+    blobPath: text("blob_path").notNull(),
+    model: text("model"),
+    escalated: boolean("escalated").notNull().default(false),
+    detectedCount: integer("detected_count").notNull().default(0),
+    insertedCount: integer("inserted_count").notNull().default(0),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("batch_uploads_batch_idx").on(t.batchId),
+    index("batch_uploads_owner_idx").on(t.ownerId),
+  ],
+);
+
 // Per-user, per-day vision-API call counter. Composite PK so a single user
 // can't blow through another user's daily quota.
 export const visionUsage = pgTable(
@@ -115,4 +151,6 @@ export type Batch = typeof batches.$inferSelect;
 export type NewBatch = typeof batches.$inferInsert;
 export type Book = typeof books.$inferSelect;
 export type NewBook = typeof books.$inferInsert;
+export type BatchUpload = typeof batchUploads.$inferSelect;
+export type NewBatchUpload = typeof batchUploads.$inferInsert;
 export type VisionUsage = typeof visionUsage.$inferSelect;

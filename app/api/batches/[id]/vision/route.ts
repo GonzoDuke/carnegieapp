@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
+import { put } from "@vercel/blob";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
 import { log, requestIdFrom } from "@/lib/log";
@@ -112,6 +113,30 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     batch_id: id,
     media_type: mediaType,
     bytes: bytes.length,
+  });
+
+  // Kick off the Blob upload in parallel with the vision call. The
+  // photo is needed so the review UI can show the user the original
+  // shelf when they realize vision missed a book. Best-effort: a
+  // Blob failure won't kill the request — the user still gets their
+  // books, they just lose the photo-review affordance for this batch.
+  // ext mirrors the media type so the URL has the right suffix.
+  const ext =
+    mediaType === "image/png" ? "png" : mediaType === "image/webp" ? "webp" : "jpg";
+  const blobPath = `vision/${id}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}.${ext}`;
+  const blobPromise = put(blobPath, bytes, {
+    access: "public",
+    contentType: mediaType,
+  }).catch((err) => {
+    log("vision.blob_error", {
+      request_id: requestId,
+      user_id: userId,
+      batch_id: id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
   });
 
   // Reserve the budget slot before calling Claude. If the call fails, this
@@ -278,6 +303,34 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     batch_id: id,
     inserted: inserted.length,
   });
+
+  // Resolve the Blob upload now that vision is done. Both legs ran in
+  // parallel, so this is usually instantaneous by the time we get here.
+  // The row records the URL/path so the batch page can render the
+  // photo back and the export route can del() it on the way out.
+  const blob = await blobPromise;
+  if (blob) {
+    try {
+      await db.insert(schema.batchUploads).values({
+        ownerId: userId,
+        batchId: id,
+        blobUrl: blob.url,
+        blobPath: blob.pathname,
+        model: extraction.model,
+        escalated,
+        detectedCount: extraction.books.length,
+        insertedCount: inserted.length,
+      });
+    } catch (err) {
+      log("vision.blob_error", {
+        request_id: requestId,
+        user_id: userId,
+        batch_id: id,
+        stage: "db_insert",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   return NextResponse.json({
     summary: {

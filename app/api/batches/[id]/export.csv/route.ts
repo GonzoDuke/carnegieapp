@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
+import { del } from "@vercel/blob";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
 import { buildLibraryThingCsv } from "@/lib/csv";
@@ -42,6 +43,39 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       .update(schema.batches)
       .set({ exportedAt: new Date() })
       .where(and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)));
+
+    // Clear the stored shelf photos. Once the batch has shipped to
+    // LibraryThing the photo's only further use would be re-cataloging,
+    // which means a new batch anyway. Keeping them indefinitely just
+    // burns Blob storage. Per-photo del() + delete the upload rows.
+    const uploads = await db
+      .select({ id: schema.batchUploads.id, blobUrl: schema.batchUploads.blobUrl })
+      .from(schema.batchUploads)
+      .where(
+        and(
+          eq(schema.batchUploads.batchId, id),
+          eq(schema.batchUploads.ownerId, userId),
+        ),
+      );
+    if (uploads.length > 0) {
+      const urls = uploads.map((u) => u.blobUrl);
+      // del() accepts a URL or array of URLs. Best-effort: if Blob
+      // rejects (e.g. a URL that's already been removed), swallow so
+      // the export still succeeds.
+      try {
+        await del(urls);
+      } catch {
+        /* swallow — the row cleanup below still proceeds */
+      }
+      await db
+        .delete(schema.batchUploads)
+        .where(
+          and(
+            eq(schema.batchUploads.batchId, id),
+            eq(schema.batchUploads.ownerId, userId),
+          ),
+        );
+    }
   }
 
   return new NextResponse(csv, {

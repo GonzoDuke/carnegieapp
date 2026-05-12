@@ -21,6 +21,7 @@ import BulkConfirmButton from "@/components/BulkConfirmButton";
 import ExportButton from "@/components/ExportButton";
 import TopBar from "@/components/TopBar";
 import BooksList from "@/components/BooksList";
+import BatchPhotos from "@/components/BatchPhotos";
 import { getBudget } from "@/lib/vision-budget";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -71,6 +72,16 @@ export default async function BatchDetailPage({
       and(
         eq(schema.books.batchId, id),
         eq(schema.books.ownerId, userId),
+      ),
+    );
+
+  const uploads = await db
+    .select()
+    .from(schema.batchUploads)
+    .where(
+      and(
+        eq(schema.batchUploads.batchId, id),
+        eq(schema.batchUploads.ownerId, userId),
       ),
     );
 
@@ -377,6 +388,8 @@ export default async function BatchDetailPage({
             </Tabs>
           </CardContent>
         </Card>
+
+        <BatchPhotos uploads={uploads} />
 
         {/* Books list */}
         <section className="space-y-3">
