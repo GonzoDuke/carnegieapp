@@ -272,12 +272,16 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         status: "pending_review" as const,
         isbn13: visionIsbn.isbn13 ?? lookup?.isbn13 ?? null,
         isbn10: visionIsbn.isbn10 ?? lookup?.isbn10 ?? null,
-        title: lookup?.title || book.title,
-        authors: lookup?.authors?.length
-          ? lookup.authors
-          : book.author
-            ? [book.author]
-            : [],
+        // Vision read the spine — that's the truth for title/author.
+        // Lookup is for ISBN + peripheral metadata (publisher, cover,
+        // LCC, etc.), not for renaming the book. If the lookup ever
+        // returns a different work (fuzzy title-search misfire,
+        // wrong-edition match), letting its title/author leak in here
+        // makes the row silently incorrect. Vision wins.
+        title: book.title.trim() || lookup?.title || "(no title)",
+        authors: book.author
+          ? [book.author]
+          : (lookup?.authors ?? []),
         publisher: lookup?.publisher ?? null,
         pubDate: lookup?.pubDate ?? null,
         coverUrl: lookup?.coverUrl ?? null,

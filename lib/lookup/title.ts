@@ -76,16 +76,17 @@ export async function lookupByTitle(
     return ordered.find((r): r is LookupResult => !!r) ?? null;
   }
 
-  // Author-overlap guardrail (applied early so we don't waste the
-  // agreement check on a wrong-author hit). If the caller gave an
-  // author hint and no acceptable hit shares a token with it, drop.
+  // Author-overlap filter. The caller's author hint applies *per
+  // candidate*, not as a global "did any result match" gate. Filtering
+  // here means a wrong-author result (e.g. "Cat Stevens" when the
+  // caller asked for "Jack Kerouac") can't sneak through as
+  // acceptable[0] just because some OTHER provider in the race
+  // returned a right-author result.
   const authorHint = author?.trim() ? [author] : null;
-  if (authorHint) {
-    const anyAuthorMatch = acceptable.some((h) =>
-      authorsLikelyMatch(authorHint, h.authors),
-    );
-    if (!anyAuthorMatch) return null;
-  }
+  const pool = authorHint
+    ? acceptable.filter((h) => authorsLikelyMatch(authorHint, h.authors))
+    : acceptable;
+  if (pool.length === 0) return null;
 
   // Providers-must-agree gate. ISBN identifies a specific printing; a
   // title-only search can plausibly return *any* edition. To avoid
@@ -94,17 +95,17 @@ export async function lookupByTitle(
   // returned an ISBN), we keep the best title+author+cover metadata but
   // null out the ISBN — the row lands in Quick-fill for the user to
   // supply the correct ISBN from the back cover.
-  const agreedIsbn13 = findAgreedIsbn(acceptable);
+  const agreedIsbn13 = findAgreedIsbn(pool);
 
   let candidate: LookupResult;
   if (agreedIsbn13) {
     // Pick the highest-priority provider that returned the agreed ISBN.
     candidate =
-      acceptable.find((h) => sameIsbn13(h, agreedIsbn13)) ?? acceptable[0];
+      pool.find((h) => sameIsbn13(h, agreedIsbn13)) ?? pool[0];
   } else {
     // No agreement — strip ISBN from whichever record we hand back. The
     // metadata is still useful; the ISBN would be a guess.
-    candidate = { ...acceptable[0], isbn13: null, isbn10: null };
+    candidate = { ...pool[0], isbn13: null, isbn10: null };
   }
 
   // Cascade for full enrichment when we have an agreed ISBN.
@@ -121,7 +122,7 @@ export async function lookupByTitle(
   // only those fields, and leave the edition-specific fields (ISBN,
   // cover, publisher, pubDate) untouched. This restores the LCC
   // landing rate that the agreement gate would otherwise have cut.
-  const probeIsbn = acceptable
+  const probeIsbn = pool
     .map(canonicalIsbn13)
     .find((k): k is string => !!k);
   if (probeIsbn) {
