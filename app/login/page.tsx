@@ -80,6 +80,13 @@ export default async function LoginPage({
                 <AlertDescription>Incorrect passcode.</AlertDescription>
               </Alert>
             )}
+            {error === "throttled" && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Too many failed attempts. Try again in a few minutes.
+                </AlertDescription>
+              </Alert>
+            )}
 
             <input type="hidden" name="next" value={next ?? "/"} />
             <div className="grid gap-2">

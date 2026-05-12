@@ -137,6 +137,24 @@ export const batchUploads = pgTable(
   ],
 );
 
+// Per-IP failed-login log. Inserted on every failed passcode attempt.
+// The login route counts entries in a recent window before doing scrypt
+// work — over the threshold, return 429 instead. Rows expire on read
+// (DELETE WHERE attempted_at < now() - interval '1 hour') so the table
+// stays bounded without a cron job.
+export const loginAttempts = pgTable(
+  "login_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // X-Forwarded-For client IP. Truncated to 64 chars for sanity.
+    ip: text("ip").notNull(),
+    attemptedAt: timestamp("attempted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("login_attempts_ip_idx").on(t.ip, t.attemptedAt)],
+);
+
 // Per-user, per-day vision-API call counter. Composite PK so a single user
 // can't blow through another user's daily quota.
 export const visionUsage = pgTable(
@@ -159,4 +177,6 @@ export type Book = typeof books.$inferSelect;
 export type NewBook = typeof books.$inferInsert;
 export type BatchUpload = typeof batchUploads.$inferSelect;
 export type NewBatchUpload = typeof batchUploads.$inferInsert;
+export type LoginAttempt = typeof loginAttempts.$inferSelect;
+export type NewLoginAttempt = typeof loginAttempts.$inferInsert;
 export type VisionUsage = typeof visionUsage.$inferSelect;
