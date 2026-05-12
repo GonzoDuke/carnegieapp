@@ -221,21 +221,20 @@ export default function BooksList({ batchId, books }: Props) {
                         // the lookup chain runs (5–25s in the worst case).
                         // The post-redirect Alert at the top of the batch
                         // page tells the user whether it hit or missed.
+                        //
+                        // Do NOT disable the submit button here — disabling
+                        // it synchronously inside onSubmit cancels the form
+                        // submission in some browsers (the button is
+                        // "disabled" by the time the browser starts the
+                        // POST, so the POST never fires). Toast alone is
+                        // the visible feedback.
                         const submitter = (e.nativeEvent as SubmitEvent)
                           .submitter as HTMLButtonElement | null;
-                        const action = submitter?.value;
-                        if (action === "relookup") {
+                        if (submitter?.value === "relookup") {
                           toast.loading("Re-running lookup chain…", {
                             id: `relookup-${book.id}`,
                             description: "Up to ~20 seconds.",
                           });
-                          // Disable both submit buttons so the user can't
-                          // double-fire. The page reload undoes this.
-                          if (submitter) submitter.disabled = true;
-                          const buttons = submitter?.form?.querySelectorAll<HTMLButtonElement>(
-                            "button[type=submit]",
-                          );
-                          buttons?.forEach((b) => (b.disabled = true));
                         }
                       }}
                     >
