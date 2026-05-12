@@ -2,6 +2,7 @@ import type { LookupResult } from "./types.ts";
 import type { NormalizedIsbn } from "./isbn.ts";
 import { cleanSubjectTags } from "./subjects.ts";
 import { cleanDescription } from "./description.ts";
+import { cleanLcc } from "./classification.ts";
 
 const BASE_URL = "https://openlibrary.org";
 // 8s, up from 4s. Open Library's search.json and bibkeys endpoints have
@@ -202,7 +203,7 @@ function projectSearchDocToResult(
     pubDate,
     coverUrl,
     subjects: [],
-    lcc: doc.lcc?.[0]?.trim() || null,
+    lcc: cleanLcc(doc.lcc?.[0]),
     description: null,
     raw: doc,
   };
@@ -244,7 +245,7 @@ function projectBookToResult(
     pubDate,
     coverUrl: cover ? cover.replace(/^http:/, "https:") : null,
     subjects: curatedSubjects,
-    lcc: book.classifications?.lc_classifications?.[0]?.trim() || null,
+    lcc: cleanLcc(book.classifications?.lc_classifications?.[0]),
     description,
     raw: book,
   };
