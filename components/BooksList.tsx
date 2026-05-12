@@ -213,6 +213,31 @@ export default function BooksList({ batchId, books }: Props) {
                       method="POST"
                       action={`/api/batches/${batchId}/books/${book.id}`}
                       className="bg-muted/30 mt-3 space-y-3 rounded-md p-3"
+                      onSubmit={(e) => {
+                        // Native form-submit, server returns 303 redirect.
+                        // We can't show a post-action toast (the page
+                        // reloads, killing client state) — but we CAN show
+                        // a loading toast that bridges the dead-zone while
+                        // the lookup chain runs (5–25s in the worst case).
+                        // The post-redirect Alert at the top of the batch
+                        // page tells the user whether it hit or missed.
+                        const submitter = (e.nativeEvent as SubmitEvent)
+                          .submitter as HTMLButtonElement | null;
+                        const action = submitter?.value;
+                        if (action === "relookup") {
+                          toast.loading("Re-running lookup chain…", {
+                            id: `relookup-${book.id}`,
+                            description: "Up to ~20 seconds.",
+                          });
+                          // Disable both submit buttons so the user can't
+                          // double-fire. The page reload undoes this.
+                          if (submitter) submitter.disabled = true;
+                          const buttons = submitter?.form?.querySelectorAll<HTMLButtonElement>(
+                            "button[type=submit]",
+                          );
+                          buttons?.forEach((b) => (b.disabled = true));
+                        }
+                      }}
                     >
                       <input type="hidden" name="_action" value="save" />
                       <div className="grid gap-3 sm:grid-cols-2">
