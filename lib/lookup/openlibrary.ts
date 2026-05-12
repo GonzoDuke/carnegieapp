@@ -81,7 +81,11 @@ export async function lookupOpenLibrarySearch(
   const queryIsbn = isbn.isbn13 ?? isbn.isbn10;
   if (!queryIsbn) return null;
 
-  const url = `${BASE_URL}/search.json?isbn=${encodeURIComponent(queryIsbn)}&limit=1`;
+  // OL's search.json defaults to a minimal field set that does NOT include
+  // lcc. Without &fields=...,lcc, the response is silently missing the
+  // only metadata we're calling this endpoint for. Field list mirrors the
+  // SearchDoc type below — extend both together.
+  const url = `${BASE_URL}/search.json?isbn=${encodeURIComponent(queryIsbn)}&limit=1&fields=key,title,subtitle,author_name,publisher,publish_date,first_publish_year,isbn,cover_i,lcc`;
 
   let response: Response;
   try {
@@ -115,6 +119,11 @@ export async function searchOpenLibraryByTitle(
 
   const params = new URLSearchParams({ title, limit: "5" });
   if (author?.trim()) params.set("author", author.trim());
+  // See note in lookupOpenLibrarySearch: fields=... is required to get lcc.
+  params.set(
+    "fields",
+    "key,title,subtitle,author_name,publisher,publish_date,first_publish_year,isbn,cover_i,lcc",
+  );
   const url = `${BASE_URL}/search.json?${params.toString()}`;
 
   let response: Response;
