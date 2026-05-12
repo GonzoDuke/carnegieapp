@@ -107,12 +107,35 @@ export async function lookupByTitle(
     candidate = { ...acceptable[0], isbn13: null, isbn10: null };
   }
 
-  // Cascade only when we have an agreed ISBN — without one, there's
-  // nothing reliable to cascade against.
+  // Cascade for full enrichment when we have an agreed ISBN.
   if (agreedIsbn13) {
     const outcome = await lookupByIsbn(agreedIsbn13);
     if (outcome.result) {
       return mergeFromCandidate(outcome.result, candidate);
+    }
+    return candidate;
+  }
+
+  // No agreement — but work-level fields (LCC, description, subjects)
+  // are usually edition-stable. Probe with any candidate's ISBN, harvest
+  // only those fields, and leave the edition-specific fields (ISBN,
+  // cover, publisher, pubDate) untouched. This restores the LCC
+  // landing rate that the agreement gate would otherwise have cut.
+  const probeIsbn = acceptable
+    .map(canonicalIsbn13)
+    .find((k): k is string => !!k);
+  if (probeIsbn) {
+    const probe = await lookupByIsbn(probeIsbn);
+    if (probe.result) {
+      candidate = {
+        ...candidate,
+        lcc: candidate.lcc ?? probe.result.lcc,
+        description: candidate.description ?? probe.result.description,
+        subjects:
+          candidate.subjects.length > 0
+            ? candidate.subjects
+            : probe.result.subjects,
+      };
     }
   }
 

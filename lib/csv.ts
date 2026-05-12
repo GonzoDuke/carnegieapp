@@ -3,7 +3,10 @@ import type { Batch, Book } from "@/lib/db/schema";
 
 // LibraryThing's CSV import is column-flexible but matches these headers
 // reliably. Authors are joined with " / " — that's LibraryThing's own
-// convention for multi-author works.
+// convention for multi-author works. "Library of Congress Classification"
+// is added on a best-effort basis: if LT's importer matches the header
+// it lands in the dedicated LCC slot; if not, the column is ignored
+// silently and the same value still appears in Comments as a safety net.
 export const LIBRARYTHING_COLUMNS = [
   "ISBN",
   "Title",
@@ -12,6 +15,7 @@ export const LIBRARYTHING_COLUMNS = [
   "Date",
   "Tags",
   "Collections",
+  "Library of Congress Classification",
   "Comments",
 ] as const;
 
@@ -61,6 +65,7 @@ export function buildLibraryThingCsv(books: Book[], batch: CsvBatch): string {
       Date: book.pubDate ?? "",
       Tags: tags,
       Collections: collections,
+      "Library of Congress Classification": book.lcc ?? "",
       Comments: comments,
     };
   });
