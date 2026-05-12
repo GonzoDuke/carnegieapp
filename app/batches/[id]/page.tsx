@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth";
 import {
   ArrowLeft,
@@ -73,6 +73,14 @@ export default async function BatchDetailPage({
         eq(schema.books.batchId, id),
         eq(schema.books.ownerId, userId),
       ),
+    )
+    // Books from a vision photo carry a 1-based left-to-right index;
+    // manual entries and recrops have NULL position. Sort positioned
+    // books first by their shelf order, then everything else by
+    // creation time so newly-added books accrete at the end.
+    .orderBy(
+      sql`${schema.books.position} NULLS LAST`,
+      asc(schema.books.createdAt),
     );
 
   const uploads = await db

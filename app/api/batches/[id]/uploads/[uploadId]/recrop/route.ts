@@ -233,6 +233,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           lcc: lookup?.lcc ?? visionLcc ?? null,
           description: lookup?.description ?? null,
           confidence: book.confidence,
+          // Recrop additions land at the end of the review queue —
+          // they're new books the user added after the original
+          // photo's positions were assigned, so there's no canonical
+          // left-to-right slot for them.
+          position: null,
           rawVision: {
             vision: book,
             lookupSource: lookup?.source ?? null,

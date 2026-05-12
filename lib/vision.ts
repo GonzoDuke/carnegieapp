@@ -31,6 +31,8 @@ For every distinct physical book in the image, return a JSON entry with:
   - 0.40: best-guess at the dominant word in the title; everything else inferred from book size, color, or context.
   - 0.20: nearly illegible; only a partial word read.
 
+- "position": integer ≥ 1. The leftmost spine in the image is position 1; the next-leftmost is position 2; and so on, reading strictly left-to-right. When the photo contains multiple shelves stacked vertically, list the topmost shelf left-to-right first, then the next shelf down, continuing the numbering. Each entry's position must be unique.
+
 Multi-volume series rule: when a single spine shows BOTH a series title and a volume identifier and the volume's own title (e.g. "The New Cambridge Modern History" + "Vol II" + "The Reformation 1520–1559"), capture the FULL combined string as one title. Do not split into multiple shorter entries — that's one physical book, one entry.
 
 Each physical book on the shelf gets exactly one entry. Two physical copies of the same book are two entries.
@@ -61,6 +63,7 @@ export type VisionBook = {
   visible_isbn: string | null;
   spine_classification: string | null;
   confidence: number;
+  position: number | null;
 };
 
 export type VisionExtraction = {
@@ -119,8 +122,14 @@ const REPORT_BOOKS_TOOL: Tool = {
               maximum: 1,
               description: "Confidence per the rubric in the system prompt.",
             },
+            position: {
+              type: "integer",
+              minimum: 1,
+              description:
+                "1-based left-to-right index of this spine in the image (top shelf first, then continuing on lower shelves).",
+            },
           },
-          required: ["title", "confidence"],
+          required: ["title", "confidence", "position"],
         },
       },
     },
@@ -474,5 +483,11 @@ function normalizeVisionBook(raw: unknown): VisionBook[] {
   const confidence = typeof r.confidence === "number" && Number.isFinite(r.confidence)
     ? Math.min(1, Math.max(0, r.confidence))
     : 0;
-  return [{ title, author, visible_isbn: isbn, spine_classification: spine, confidence }];
+  const position =
+    typeof r.position === "number" &&
+    Number.isFinite(r.position) &&
+    r.position >= 1
+      ? Math.floor(r.position)
+      : null;
+  return [{ title, author, visible_isbn: isbn, spine_classification: spine, confidence, position }];
 }

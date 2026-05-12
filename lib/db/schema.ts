@@ -88,6 +88,12 @@ export const books = pgTable(
     // comments — shows up in the expanded book row and in the CSV Comments.
     description: text("description"),
     confidence: real("confidence"),
+    // 1-based left-to-right index within the source photo. Set by the
+    // vision route from the model's "position" field so the review
+    // queue can render books in the same order they appear on the
+    // shelf. Null on manual entries and recrops (they don't have a
+    // canonical position on the original photo).
+    position: integer("position"),
     rawVision: jsonb("raw_vision"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

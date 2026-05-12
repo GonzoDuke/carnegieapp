@@ -291,6 +291,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         lcc: lookup?.lcc ?? visionLcc ?? null,
         description: lookup?.description ?? null,
         confidence: book.confidence,
+        position: book.position,
         rawVision: {
           vision: book,
           lookupSource: lookup?.source ?? null,
