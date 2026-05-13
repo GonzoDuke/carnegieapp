@@ -10,6 +10,7 @@ import {
   ChevronsUpDown,
   Sparkles,
   Trash2,
+  Undo2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -449,6 +450,32 @@ export default function BooksList({ batchId, books }: Props) {
                           className="text-muted-foreground hover:bg-primary/10 hover:text-primary"
                         >
                           <Check className="size-4" />
+                        </Button>
+                      </form>
+                    )}
+                    {/* Un-confirm — mirrors the inline confirm but only
+                        appears on already-confirmed rows. Flips status
+                        back to pending_review so the row re-enters the
+                        review queue. */}
+                    {book.status === "confirmed" && (
+                      <form
+                        method="POST"
+                        action={`/api/batches/${batchId}/books/${book.id}`}
+                      >
+                        <input type="hidden" name="_action" value="save" />
+                        <input
+                          type="hidden"
+                          name="status"
+                          value="pending_review"
+                        />
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Back to pending review"
+                          className="text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <Undo2 className="size-4" />
                         </Button>
                       </form>
                     )}

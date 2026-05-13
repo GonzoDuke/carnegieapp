@@ -153,7 +153,7 @@ export default function GuidePage() {
               <ActionRow
                 icon={<CheckCheck className="size-4" />}
                 name="Confirm"
-                meaning="Title and author look right. Sends to confirmed."
+                meaning="Title and author look right. Sends to confirmed; the ↩ icon on the card flips it back to pending."
               />
               <ActionRow
                 icon={<Pencil className="size-4" />}
