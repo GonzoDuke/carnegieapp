@@ -3,6 +3,39 @@
 Carnegie — a personal-library cataloger. Photograph shelves, scan
 barcodes, type ISBNs; export LibraryThing-compatible CSV.
 
+## Unreleased
+
+Post-1.0 improvements gathered for the next point release.
+
+### Lookup chain
+
+- Added the **Library of Congress** SRU endpoint as a fourth lookup
+  source. LoC is the canonical LCC authority; its values are
+  preferred over Open Library when both return. Bumps the LCC
+  landing rate noticeably on US-published books.
+
+### CSV export
+
+- LCC now lives only in its dedicated `Library of Congress
+  Classification` column; the duplicate `LCC: …` line in Comments
+  is gone.
+
+### UI / mobile polish
+
+- Batch hero is decluttered. Refresh and Delete move into a `···`
+  overflow menu (Base UI Menu). Quick-fill, Confirm, and Send to
+  LibraryThing only render when they actually apply, so an
+  empty-or-all-pending batch no longer shows three inert buttons.
+- Books section gains a per-list toolbar under the heading: **Select
+  all** checkbox and **Expand all / Collapse all** toggle. The
+  expand preference persists across visits via localStorage.
+- Bulk-action bar at the bottom now shows just the selection count
+  plus actions — the select toggle moved up to the Books header
+  where it's always visible.
+- Re-lookup on the per-book edit form shows a loading toast while
+  the lookup chain runs (previously the button appeared to do
+  nothing for 5–20 seconds).
+
 ## 1.0.0 — 2026-05-12
 
 First stable release. Carnegie is ready for the workflow it was built
