@@ -1,4 +1,4 @@
-export type LookupSource = "isbndb" | "openlibrary" | "googlebooks";
+export type LookupSource = "isbndb" | "openlibrary" | "googlebooks" | "loc";
 
 export type LookupResult = {
   source: LookupSource;
@@ -14,7 +14,8 @@ export type LookupResult = {
   // theirs (Open Library is too noisy by design).
   subjects: string[];
   // Library of Congress Classification (call number) when available.
-  // Practically only Open Library exposes this on the bibkeys data API.
+  // Sources, in descending authority: Library of Congress (canonical),
+  // Open Library bibkeys, Open Library search.json.
   lcc: string | null;
   // Book synopsis / description. Most providers expose one (Google Books'
   // `description`, ISBNdb's `synopsys`, OL's `notes`). Capped to a sane

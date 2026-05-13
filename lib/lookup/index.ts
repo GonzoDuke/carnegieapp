@@ -2,6 +2,7 @@ import { normalizeIsbn, type NormalizedIsbn } from "./isbn.ts";
 import { lookupIsbndb } from "./isbndb.ts";
 import { lookupOpenLibrary, lookupOpenLibrarySearch } from "./openlibrary.ts";
 import { lookupGoogleBooks } from "./googlebooks.ts";
+import { lookupLoc } from "./loc.ts";
 import { isAcceptable, type LookupResult, type LookupSource } from "./types.ts";
 
 export type { LookupResult, LookupSource } from "./types.ts";
@@ -41,17 +42,20 @@ export async function lookupByIsbn(rawIsbn: string): Promise<LookupOutcome> {
     return { isbn, result: null, attempts: [] };
   }
 
-  // All three providers race in parallel. ISBNdb is paid + most reliable so
-  // its result is preferred when acceptable; OL is preferred over GB.
-  // Open Library gets both ISBN forms in a single request — pre-2007 books
-  // are sometimes only indexed under ISBN-10.
-  const [isbndb, openlibrary, googlebooks] = await Promise.all([
+  // Four providers race in parallel. ISBNdb is paid + most reliable so
+  // its result is preferred for primary metadata; OL is preferred over
+  // GB. LoC is for LCC enrichment only (it returns an empty title so
+  // isAcceptable rejects it as a primary winner). Open Library gets
+  // both ISBN forms in a single request — pre-2007 books are sometimes
+  // only indexed under ISBN-10.
+  const [isbndb, openlibrary, googlebooks, loc] = await Promise.all([
     runProvider("isbndb", () => lookupIsbndb(isbn13)),
     runProvider("openlibrary", () => lookupOpenLibrary(isbn)),
     runProvider("googlebooks", () => lookupGoogleBooks(isbn13)),
+    runProvider("loc", () => lookupLoc(isbn)),
   ]);
 
-  const attempts: LookupAttempt[] = [isbndb, openlibrary, googlebooks];
+  const attempts: LookupAttempt[] = [isbndb, openlibrary, googlebooks, loc];
 
   // Preference order: ISBNdb → OL → GB. First acceptable wins.
   let winner: LookupResult | null = null;
@@ -98,10 +102,21 @@ function enrichResult(
 ): LookupResult {
   const next = { ...result };
 
-  // LCC: only OL exposes it. If winner doesn't have one, borrow.
+  // LCC preference: LoC is the canonical source; OL borrows from LoC
+  // (and sometimes drops it). Explicit ordering so we always take the
+  // authoritative one when multiple providers return.
   if (!next.lcc) {
-    const fromOther = attempts.find((a) => a.result?.lcc)?.result?.lcc ?? null;
-    if (fromOther) next.lcc = fromOther;
+    const preferenceOrder: LookupSource[] = ["loc", "openlibrary", "isbndb"];
+    for (const src of preferenceOrder) {
+      const found = attempts
+        .filter((a) => a.source === src)
+        .map((a) => a.result?.lcc)
+        .find((c) => !!c);
+      if (found) {
+        next.lcc = found;
+        break;
+      }
+    }
   }
 
   // Description: prefer Google Books (richest synopsis text), then ISBNdb,
