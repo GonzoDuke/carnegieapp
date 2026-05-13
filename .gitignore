@@ -49,6 +49,11 @@ JMK.md
 TESTER_GUIDE.md
 COSTS.md
 
+# Playwright e2e artifacts — recordings, traces, reports
+/test-results
+/playwright-report
+/playwright/.cache
+
 # Vision eval harness — local photos, truth labels, and baselines.
 # .gitkeep files in each folder are tracked so a fresh clone has the
 # scaffold ready; everything else local.
