@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
   CheckCheck,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Sparkles,
   Trash2,
   X,
@@ -25,10 +27,75 @@ type Props = {
   books: Book[];
 };
 
+const EXPAND_PREF_KEY = "carnegie:books-expanded";
+
+// useSyncExternalStore subscribe — fires the callback when the storage
+// event fires (cross-tab updates) AND for our own writes via a manually
+// dispatched event below. Returns a cleanup.
+function subscribeToStoragePref(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
+function getClientPref(): string | null {
+  try {
+    return localStorage.getItem(EXPAND_PREF_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function getServerPref(): string | null {
+  return null;
+}
+
+function writePref(next: boolean) {
+  try {
+    localStorage.setItem(EXPAND_PREF_KEY, next ? "1" : "0");
+    // The native `storage` event only fires in OTHER tabs. Dispatch
+    // one ourselves so our useSyncExternalStore subscribers update.
+    window.dispatchEvent(new Event("storage"));
+  } catch {
+    /* localStorage blocked — preference is still applied this session via
+       direct setExpandAll fallback (handled at the call site) */
+  }
+}
+
 export default function BooksList({ batchId, books }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  // expand-all preference is derived directly from localStorage via
+  // useSyncExternalStore — no effect needed for the read, no
+  // setState-in-effect lint pain. "1" = expanded, "0" = collapsed,
+  // null = no preference (the native <details> default takes over).
+  const stored = useSyncExternalStore(
+    subscribeToStoragePref,
+    getClientPref,
+    getServerPref,
+  );
+  const expandAll: boolean | null =
+    stored === "1" ? true : stored === "0" ? false : null;
+  const listRef = useRef<HTMLUListElement | null>(null);
+
+  // Sync every <details> in the list to the current expandAll state.
+  // Re-runs when the books array changes so newly-added rows pick up
+  // the user's preference too. When expandAll is null (no preference)
+  // we leave each <details> alone — the browser's default behavior
+  // takes over.
+  useEffect(() => {
+    if (expandAll === null) return;
+    const els = listRef.current?.querySelectorAll<HTMLDetailsElement>("details");
+    els?.forEach((el) => {
+      el.open = expandAll;
+    });
+  }, [expandAll, books]);
+
+  function toggleExpandAll() {
+    // expandAll could be null (no pref yet); first click goes to expanded.
+    writePref(expandAll !== true);
+  }
 
   // The state set may contain stale IDs after a router.refresh removed some
   // books — derive the live selection on each render rather than syncing
@@ -97,7 +164,37 @@ export default function BooksList({ batchId, books }: Props) {
 
   return (
     <>
-      <ul className="space-y-2">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h2 className="font-heading text-lg font-semibold tracking-tight">
+          Books
+          <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+            ({books.length})
+          </span>
+        </h2>
+        {books.length > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={toggleExpandAll}
+            className="text-muted-foreground hover:text-foreground"
+            title={expandAll ? "Collapse every book card" : "Expand every book card"}
+          >
+            {expandAll ? (
+              <>
+                <ChevronsDownUp className="size-3.5" />
+                Collapse all
+              </>
+            ) : (
+              <>
+                <ChevronsUpDown className="size-3.5" />
+                Expand all
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+      <ul ref={listRef} className="space-y-2">
         {books.map((book) => {
           const dot = confidenceDot(book.source, book.confidence);
           const isChecked = selected.has(book.id);

@@ -399,19 +399,21 @@ export default async function BatchDetailPage({
 
         <BatchPhotos uploads={uploads} />
 
-        {/* Books list */}
+        {/* Books list — BooksList owns its own header row (title +
+            book count + expand/collapse-all toggle). Empty state
+            gets the title here so the section still reads naturally
+            with no books. */}
         <section className="space-y-3">
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-heading text-lg font-semibold tracking-tight">
-              Books
-              <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                ({books.length})
-              </span>
-            </h2>
-          </div>
-
           {books.length === 0 ? (
-            <EmptyBooks />
+            <>
+              <h2 className="font-heading text-lg font-semibold tracking-tight">
+                Books
+                <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+                  (0)
+                </span>
+              </h2>
+              <EmptyBooks />
+            </>
           ) : (
             <BooksList batchId={batch.id} books={books} />
           )}
