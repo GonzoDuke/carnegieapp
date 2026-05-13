@@ -20,7 +20,7 @@ export default function SearchBar() {
         <Input
           type="search"
           name="q"
-          placeholder="Search title, author, ISBN…"
+          placeholder="Search your library — title, author, ISBN…"
           className="h-7 border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </div>
