@@ -9,17 +9,23 @@ const FEEDBACK_EMAIL = "dr.jmk@pm.me";
 
 const FEEDBACK_SUBJECT = "Carnegie bug report";
 
-const FEEDBACK_BODY = `What happened:
-
-
-Batch name (if applicable):
-
-
-Roughly when:
-
-
-Screenshot (attach if you have one):
-`;
+// Mailto bodies must use CRLF line endings to render as multiple
+// lines in most clients (iOS Mail, Gmail web, Outlook). With LF
+// alone, several clients collapse the whole thing onto one line.
+// Per RFC 6068 the canonical form is %0D%0A.
+const FEEDBACK_BODY = [
+  "What happened:",
+  "",
+  "",
+  "Batch name (if applicable):",
+  "",
+  "",
+  "Roughly when:",
+  "",
+  "",
+  "Screenshot (attach if you have one):",
+  "",
+].join("\r\n");
 
 export const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(
   FEEDBACK_SUBJECT,
