@@ -15,8 +15,7 @@ import {
 import { getDb, schema } from "@/lib/db/client";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import PhotoCapture from "@/components/PhotoCapture";
-import DeleteBatchButton from "@/components/DeleteBatchButton";
-import RefreshButton from "@/components/RefreshButton";
+import BatchActionsMenu from "@/components/BatchActionsMenu";
 import BulkConfirmButton from "@/components/BulkConfirmButton";
 import ExportButton from "@/components/ExportButton";
 import TopBar from "@/components/TopBar";
@@ -152,8 +151,12 @@ export default async function BatchDetailPage({
         {/* Hero header with batch identity + actions */}
         <section className="from-primary/8 via-card to-card relative overflow-hidden rounded-2xl border bg-gradient-to-br shadow-sm">
           <div className="from-primary/12 pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-gradient-to-br to-transparent blur-3xl" />
-          <div className="relative space-y-5 p-5 sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="relative space-y-4 p-5 sm:p-6">
+            {/* Title row — batch identity on the left, overflow menu
+                (Refresh / Delete) on the right. The primary actions
+                row sits below. This split keeps the hero readable on
+                mobile where five wrapping buttons used to dominate. */}
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 space-y-1">
                 <h1 className="font-heading truncate text-3xl font-semibold tracking-tight sm:text-4xl">
                   {batch.name}
@@ -168,8 +171,33 @@ export default async function BatchDetailPage({
                 )}
               </div>
 
+              <BatchActionsMenu
+                batchId={batch.id}
+                batchName={batch.name}
+                bookCount={books.length}
+              />
+            </div>
+
+            {/* Inline stats */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <StatChip count={books.length} label="total" />
+              <StatChip
+                count={confirmedCount}
+                label="confirmed"
+                tone="confirmed"
+              />
+              <StatChip count={pendingCount} label="pending" tone="pending" />
+            </div>
+
+            {/* Primary actions — only render when they actually apply.
+                Quick-fill is hidden when no pending books are missing
+                ISBN; BulkConfirmButton returns null at 0 eligible;
+                ExportButton returns null at 0 confirmed. So an empty
+                or all-exported batch produces no row at all. */}
+            {(quickFillCount > 0 ||
+              bulkEligibleCount > 0 ||
+              confirmedCount > 0) && (
               <div className="flex flex-wrap items-center gap-2">
-                <RefreshButton />
                 {quickFillCount > 0 && (
                   <Link
                     href={`/batches/${batch.id}/quick-fill`}
@@ -185,24 +213,8 @@ export default async function BatchDetailPage({
                   threshold={BULK_CONFIRM_THRESHOLD}
                 />
                 <ExportButton batchId={batch.id} count={confirmedCount} />
-                <DeleteBatchButton
-                  batchId={batch.id}
-                  batchName={batch.name}
-                  bookCount={books.length}
-                />
               </div>
-            </div>
-
-            {/* Inline stats */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <StatChip count={books.length} label="total" />
-              <StatChip
-                count={confirmedCount}
-                label="confirmed"
-                tone="confirmed"
-              />
-              <StatChip count={pendingCount} label="pending" tone="pending" />
-            </div>
+            )}
 
             {batch.exportedAt && (
               <div className="text-primary inline-flex items-center gap-1 text-[11px] font-medium">

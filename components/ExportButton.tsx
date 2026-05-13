@@ -16,14 +16,10 @@ export default function ExportButton({ batchId, count }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
 
-  if (count === 0) {
-    return (
-      <Button variant="outline" size="sm" disabled>
-        <Download className="size-4" />
-        Send to LibraryThing (0)
-      </Button>
-    );
-  }
+  // Hide entirely when there's nothing to export. Showing a disabled
+  // button just adds noise to the hero header — the user knows they
+  // can't export 0 books.
+  if (count === 0) return null;
 
   const csvUrl = `/api/batches/${batchId}/export.csv`;
 
