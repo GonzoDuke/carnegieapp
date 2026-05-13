@@ -472,6 +472,10 @@ export default function BooksList({ batchId, books }: Props) {
         <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-4">
           <Card className="bg-background/85 pointer-events-auto shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/65 animate-in slide-in-from-bottom-4 duration-200">
             <CardContent className="flex flex-wrap items-center gap-2 px-3 py-2">
+              {/* Explicit "Select all" toggle — the checkbox alone with
+                  just a count next to it ("1 selected") read as the
+                  state, not the action. Clicking the label or the
+                  checkbox toggles. */}
               <label className="inline-flex cursor-pointer items-center gap-2 px-1">
                 <Checkbox
                   checked={allSelected}
@@ -480,9 +484,12 @@ export default function BooksList({ batchId, books }: Props) {
                   aria-label={allSelected ? "Deselect all" : "Select all"}
                 />
                 <span className="text-foreground text-xs font-medium">
-                  {selectionCount} selected
+                  {allSelected ? "Deselect all" : "Select all"}
                 </span>
               </label>
+              <span className="text-muted-foreground text-xs whitespace-nowrap">
+                {selectionCount} of {visibleIds.length}
+              </span>
 
               <div className="bg-border h-5 w-px" />
 
