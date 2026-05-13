@@ -469,8 +469,15 @@ function StatChip({
 
 function EmptyBooks() {
   return (
-    <Card className="border-dashed">
-      <CardContent className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+    <Card className="relative overflow-hidden border-dashed">
+      {/* Faint tartan watermark — mirrors the home page's empty
+          batch-list card. Identity at boundary moments. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.06]"
+        style={{ backgroundImage: "url(/tartanImagePrototype.jpg)" }}
+      />
+      <CardContent className="relative flex flex-col items-center gap-3 px-6 py-12 text-center">
         <svg
           viewBox="0 0 100 100"
           className="text-primary/40 h-16 w-auto"

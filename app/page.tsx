@@ -434,8 +434,17 @@ function BatchCard({ batch }: { batch: BatchRow }) {
 
 function EmptyBatches() {
   return (
-    <Card className="border-dashed">
-      <CardContent className="flex flex-col items-center gap-4 px-6 py-14 text-center">
+    <Card className="relative overflow-hidden border-dashed">
+      {/* Faint tartan watermark — testing whether the bookplate
+          identity reads as "Carnegie" in empty moments. Set low
+          enough (~6%) that it whispers rather than shouts; dial
+          up via opacity-[0.08] etc. if it needs more presence. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.06]"
+        style={{ backgroundImage: "url(/tartanImagePrototype.jpg)" }}
+      />
+      <CardContent className="relative flex flex-col items-center gap-4 px-6 py-14 text-center">
         <ShelfIllustration />
         <div className="space-y-1">
           <p className="font-heading text-lg font-semibold">
