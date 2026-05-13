@@ -72,14 +72,16 @@ export default function AboutPage() {
                 <li>ISBNdb</li>
                 <li>Open Library</li>
                 <li>Google Books</li>
+                <li>Library of Congress</li>
               </ColophonGroup>
               <ColophonGroup label="Vision">
                 <li>Claude Sonnet 4.6</li>
                 <li>Claude Opus 4.7</li>
               </ColophonGroup>
               <ColophonGroup label="Built with">
-                <li>Next.js · Drizzle</li>
-                <li>Neon · Vercel</li>
+                <li>Next.js · React · Drizzle</li>
+                <li>Neon · Vercel · Blob</li>
+                <li>Base UI · Tailwind</li>
                 <li>Lora · Geist Sans</li>
               </ColophonGroup>
             </CardContent>
