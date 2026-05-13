@@ -3,10 +3,8 @@ import type { Batch, Book } from "@/lib/db/schema";
 
 // LibraryThing's CSV import is column-flexible but matches these headers
 // reliably. Authors are joined with " / " — that's LibraryThing's own
-// convention for multi-author works. "Library of Congress Classification"
-// is added on a best-effort basis: if LT's importer matches the header
-// it lands in the dedicated LCC slot; if not, the column is ignored
-// silently and the same value still appears in Comments as a safety net.
+// convention for multi-author works. LCC is its own dedicated column,
+// not duplicated into Comments.
 export const LIBRARYTHING_COLUMNS = [
   "ISBN",
   "Title",
@@ -43,14 +41,12 @@ export function buildLibraryThingCsv(books: Book[], batch: CsvBatch): string {
       .filter((c): c is string => Boolean(c))
       .filter((c, i, a) => a.indexOf(c) === i);
     const collections = collectionList.join(", ");
-    // Comments: location, LCC call number, the synopsis captured at lookup
-    // time, then any per-book user comment. Each on its own line so LT
-    // renders them readably.
-    const lccLine = book.lcc ? `LCC: ${book.lcc}` : null;
+    // Comments: location, the synopsis captured at lookup time, then any
+    // per-book user comment. Each on its own line so LT renders them
+    // readably. LCC is NOT here — it lives in its own column.
     const descriptionLine = book.description ? book.description : null;
     const comments = [
       locationLine,
-      lccLine,
       descriptionLine,
       book.comments,
     ]
