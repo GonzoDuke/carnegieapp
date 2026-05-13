@@ -22,6 +22,37 @@ export default function BulkConfirmButton({
 
   if (eligibleCount === 0) return null;
 
+  async function undoConfirm(ids: string[]) {
+    if (ids.length === 0) return;
+    const toastId = toast.loading(
+      `Reverting ${ids.length} ${ids.length === 1 ? "book" : "books"}…`,
+    );
+    try {
+      const res = await fetch(
+        `/api/batches/${batchId}/books/bulk-status`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookIds: ids, action: "to-pending" }),
+        },
+      );
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.error || `Failed (${res.status})`);
+      }
+      const n = payload?.updated ?? 0;
+      toast.success(
+        `Reverted ${n} ${n === 1 ? "book" : "books"} to pending`,
+        { id: toastId },
+      );
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err), {
+        id: toastId,
+      });
+    }
+  }
+
   async function onClick() {
     const ok = window.confirm(
       `Confirm all ${eligibleCount} pending books with confidence ≥ ${threshold}?`,
@@ -40,7 +71,21 @@ export default function BulkConfirmButton({
         throw new Error(payload?.error || `Failed (${res.status})`);
       }
       const n = payload?.confirmed ?? 0;
-      toast.success(`Confirmed ${n} ${n === 1 ? "book" : "books"}`);
+      const ids: string[] = Array.isArray(payload?.confirmedIds)
+        ? payload.confirmedIds
+        : [];
+      // Toast with an Undo action — Sonner auto-dismisses after its
+      // default duration (~5s). Clicking Undo fires a to-pending
+      // bulk-status call that flips the same IDs back to pending.
+      toast.success(`Confirmed ${n} ${n === 1 ? "book" : "books"}`, {
+        action:
+          ids.length > 0
+            ? {
+                label: "Undo",
+                onClick: () => undoConfirm(ids),
+              }
+            : undefined,
+      });
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));

@@ -42,8 +42,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     )
     .returning({ id: schema.books.id });
 
+  // Return the affected IDs so the client can show an Undo toast
+  // that pipes them back through bulk-status with action=to-pending.
+  // Cheap (these are uuids, list bounded by batch size).
   return NextResponse.json({
     confirmed: updated.length,
+    confirmedIds: updated.map((u) => u.id),
     minConfidence: parsed.data.minConfidence,
   });
 }
