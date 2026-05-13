@@ -115,6 +115,10 @@ export default function GuidePage() {
           <Card>
             <CardContent className="space-y-3 p-5 text-sm">
               <Fact
+                label="First shelf: ~15–20 min"
+                body="Subsequent batches go faster as you find your rhythm. A quick bulk-confirm pass catches the easy 90%; the more time you spend tightening odd titles and authors, the cleaner your LibraryThing import lands."
+              />
+              <Fact
                 label="Your ISBN wins"
                 body="An ISBN you type or scan is authoritative. The lookup chain fills metadata around it — it never overwrites the ISBN with a different edition."
               />

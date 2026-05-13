@@ -2,6 +2,7 @@ import Image from "next/image";
 import { count } from "drizzle-orm";
 import { Library } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
+import { FORGOT_PASSCODE_MAILTO } from "@/lib/feedback";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -102,10 +103,16 @@ export default async function LoginPage({
             </div>
           </CardContent>
 
-          <CardFooter className="px-6 pb-6">
+          <CardFooter className="flex-col gap-3 px-6 pb-6">
             <Button type="submit" className="w-full">
               Sign in
             </Button>
+            <a
+              href={FORGOT_PASSCODE_MAILTO}
+              className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+            >
+              Forgot your passcode?
+            </a>
           </CardFooter>
         </form>
       </Card>
