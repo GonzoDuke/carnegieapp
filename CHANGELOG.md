@@ -3,9 +3,10 @@
 Carnegie — a personal-library cataloger. Photograph shelves, scan
 barcodes, type ISBNs; export LibraryThing-compatible CSV.
 
-## Unreleased
+## 1.1.0 — 2026-05-13
 
-Post-1.0 improvements gathered for the next point release.
+Point release gathering the post-1.0 lookup, export, and mobile-UI
+refinements. No DB migrations; safe drop-in upgrade.
 
 ### Lookup chain
 
@@ -35,6 +36,7 @@ Post-1.0 improvements gathered for the next point release.
 - Re-lookup on the per-book edit form shows a loading toast while
   the lookup chain runs (previously the button appeared to do
   nothing for 5–20 seconds).
+- About page footer surfaces the current version.
 
 ## 1.0.0 — 2026-05-12
 

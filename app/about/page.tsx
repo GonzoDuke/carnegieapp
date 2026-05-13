@@ -3,6 +3,7 @@ import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import TopBar from "@/components/TopBar";
 import { Card, CardContent } from "@/components/ui/card";
+import pkg from "@/package.json";
 
 export const metadata = {
   title: "About — Carnegie",
@@ -87,10 +88,16 @@ export default function AboutPage() {
 
         {/* Printer's-mark footer — modeled on the colophon endline of a
             printed book. Carries the IP statement without resorting to a
-            legalistic block. */}
-        <p className="text-muted-foreground text-center text-xs italic">
-          Made in {new Date().getFullYear()} by Jonathan Kelly. © All rights reserved.
-        </p>
+            legalistic block. The version line below it is the running
+            edition imprint, pulled live from package.json. */}
+        <div className="space-y-1 text-center">
+          <p className="text-muted-foreground text-xs italic">
+            Made in {new Date().getFullYear()} by Jonathan Kelly. © All rights reserved.
+          </p>
+          <p className="text-muted-foreground/70 text-[11px] tabular-nums">
+            Carnegie v{pkg.version}
+          </p>
+        </div>
       </main>
     </>
   );
