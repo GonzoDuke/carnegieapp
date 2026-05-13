@@ -37,8 +37,16 @@ export default function PendingReviewPanel({ books }: Props) {
 
   if (books.length === 0) {
     return (
-      <Card>
-        <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-base">
+      <Card className="relative overflow-hidden">
+        {/* Same faint tartan watermark as the other empty-state cards
+            (EmptyBatches, EmptyBooks). Bookplate identity at boundary
+            moments — here, the moment of "all caught up." */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.06]"
+          style={{ backgroundImage: "url(/tartanImagePrototype.jpg)" }}
+        />
+        <CardContent className="text-muted-foreground relative flex flex-col items-center gap-2 py-12 text-center text-base">
           <Check className="text-primary size-6" />
           <span>All caught up. No pending books across your batches.</span>
         </CardContent>
