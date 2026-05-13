@@ -7,11 +7,15 @@ import { requireUserId } from "@/lib/auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// "delete" hard-removes rows. "confirm" flips status to confirmed.
-// "Reject" no longer exists as a distinct state — rejected = deleted.
+// Actions on a list of books in a batch. `delete` is now SOFT —
+// flips status to `rejected` so the user can recover from the Trash
+// view. `permanent-delete` is the real hard delete, only used by the
+// Trash UI's "Delete forever" button. `confirm` flips status to
+// confirmed. `to-pending` flips status back to pending_review (used
+// by Bulk-confirm's Undo and by Restore-from-trash).
 const PayloadSchema = z.object({
   bookIds: z.array(z.string().uuid()).min(1).max(500),
-  action: z.enum(["confirm", "delete"]),
+  action: z.enum(["confirm", "delete", "permanent-delete", "to-pending"]),
 });
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
@@ -36,19 +40,32 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     inArray(schema.books.id, parsed.data.bookIds),
   );
 
-  if (parsed.data.action === "delete") {
+  if (parsed.data.action === "permanent-delete") {
     const removed = await db
       .delete(schema.books)
       .where(scope)
       .returning({ id: schema.books.id });
-    return NextResponse.json({ updated: removed.length, action: "delete" });
+    return NextResponse.json({
+      updated: removed.length,
+      action: "permanent-delete",
+    });
   }
+
+  const nextStatus =
+    parsed.data.action === "confirm"
+      ? ("confirmed" as const)
+      : parsed.data.action === "delete"
+        ? ("rejected" as const)
+        : ("pending_review" as const);
 
   const updated = await db
     .update(schema.books)
-    .set({ status: "confirmed" })
+    .set({ status: nextStatus })
     .where(scope)
     .returning({ id: schema.books.id });
 
-  return NextResponse.json({ updated: updated.length, action: "confirm" });
+  return NextResponse.json({
+    updated: updated.length,
+    action: parsed.data.action,
+  });
 }

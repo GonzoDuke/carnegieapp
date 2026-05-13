@@ -21,6 +21,7 @@ import ExportButton from "@/components/ExportButton";
 import TopBar from "@/components/TopBar";
 import BooksList from "@/components/BooksList";
 import BatchPhotos from "@/components/BatchPhotos";
+import TrashList from "@/components/TrashList";
 import { getBudget } from "@/lib/vision-budget";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -92,9 +93,18 @@ export default async function BatchDetailPage({
       ),
     );
 
-  const confirmedCount = books.filter((b) => b.status === "confirmed").length;
-  const pendingCount = books.filter((b) => b.status === "pending_review").length;
-  const bulkEligibleCount = books.filter(
+  // Split the batch's books by status. Rejected books live in the
+  // Trash view below the main list; everything else (pending +
+  // confirmed) renders in BooksList as the active review queue.
+  // Stats and primary-action counts apply to active books only —
+  // rejected rows are "out of the queue" for everything except
+  // restore-or-permanent-delete.
+  const rejectedBooks = books.filter((b) => b.status === "rejected");
+  const activeBooks = books.filter((b) => b.status !== "rejected");
+
+  const confirmedCount = activeBooks.filter((b) => b.status === "confirmed").length;
+  const pendingCount = activeBooks.filter((b) => b.status === "pending_review").length;
+  const bulkEligibleCount = activeBooks.filter(
     (b) =>
       b.status === "pending_review" &&
       b.confidence !== null &&
@@ -103,7 +113,7 @@ export default async function BatchDetailPage({
   // Books that would benefit from quick-fill: pending review with no ISBN
   // yet. With an ISBN they already got a lookup at insert; re-running is
   // wasted budget.
-  const quickFillCount = books.filter(
+  const quickFillCount = activeBooks.filter(
     (b) => b.status === "pending_review" && !b.isbn13 && !b.isbn10,
   ).length;
   const budget = await getBudget(userId);
@@ -414,9 +424,10 @@ export default async function BatchDetailPage({
         {/* Books list — BooksList owns its own header row (title +
             book count + expand/collapse-all toggle). Empty state
             gets the title here so the section still reads naturally
-            with no books. */}
+            with no books. Rejected books are filtered out and live
+            in the Trash section below. */}
         <section className="space-y-3">
-          {books.length === 0 ? (
+          {activeBooks.length === 0 ? (
             <>
               <h2 className="font-heading text-lg font-semibold tracking-tight">
                 Books
@@ -427,9 +438,31 @@ export default async function BatchDetailPage({
               <EmptyBooks />
             </>
           ) : (
-            <BooksList batchId={batch.id} books={books} />
+            <BooksList batchId={batch.id} books={activeBooks} />
           )}
         </section>
+
+        {/* Trash — rejected books, collapsed by default. Each row has
+            Restore (back to pending) and Delete forever (real DB
+            delete). Hidden entirely when there's nothing to restore. */}
+        {rejectedBooks.length > 0 && (
+          <section>
+            <details className="group">
+              <summary className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium transition-colors">
+                <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
+                <span>
+                  Trash
+                  <span className="text-muted-foreground/70 ml-1 font-normal">
+                    ({rejectedBooks.length})
+                  </span>
+                </span>
+              </summary>
+              <div className="mt-3">
+                <TrashList batchId={batch.id} books={rejectedBooks} />
+              </div>
+            </details>
+          </section>
+        )}
 
         <Separator />
         <footer className="text-muted-foreground text-[11px]">

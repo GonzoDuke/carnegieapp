@@ -12,14 +12,21 @@ import { lookupByTitle } from "@/lib/lookup/title";
 type RouteContext = { params: Promise<{ id: string; bookId: string }> };
 
 const ActionSchema = z.object({
-  _action: z.enum(["save", "delete", "relookup", "remove-tag"]).optional(),
+  _action: z
+    .enum([
+      "save",
+      "delete",
+      "permanent-delete",
+      "restore",
+      "relookup",
+      "remove-tag",
+    ])
+    .optional(),
   title: z.string().trim().min(1).max(1000).optional(),
   authors: z.string().trim().max(1000).optional().nullable(),
   isbn: z.string().trim().max(20).optional().nullable(),
   publisher: z.string().trim().max(200).optional().nullable(),
   pubDate: z.string().trim().max(100).optional().nullable(),
-  // "rejected" is accepted purely so legacy clients still work — it's
-  // treated as a delete below. New code should send action=delete instead.
   status: z
     .enum(["pending_review", "confirmed", "rejected"])
     .optional(),
@@ -49,10 +56,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const db = getDb();
 
-  // Reject = delete. If a save action arrives with status=rejected, treat it
-  // as a delete so we never persist that status.
-  const isDelete = action === "delete" || parsed.data.status === "rejected";
-
   // books.owner_id is denormalized off of batches.owner_id at insert time,
   // so per-book ownership checks can filter on books directly without
   // joining batches. Every query below scopes by both bookId and userId.
@@ -61,18 +64,26 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     eq(schema.books.ownerId, userId),
   );
 
-  if (isDelete) {
-    const [deleted] = await db
-      .delete(schema.books)
+  // Reject is now a SOFT delete — the row stays, status flips to
+  // 'rejected', and the Trash view on the batch page surfaces it for
+  // restore-or-permanent-delete. A "save" action with status=rejected
+  // gets coerced into the same soft-delete path so legacy callers
+  // can't bypass the trash.
+  const isSoftDelete = action === "delete" || parsed.data.status === "rejected";
+
+  if (isSoftDelete) {
+    const [rejected] = await db
+      .update(schema.books)
+      .set({ status: "rejected" })
       .where(ownerScope)
       .returning();
-    if (!deleted) {
+    if (!rejected) {
       log("book.action", {
         request_id: requestId,
         user_id: userId,
         batch_id: id,
         book_id: bookId,
-        action: "delete",
+        action: "reject",
         outcome: "not_found",
       });
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -82,12 +93,59 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       user_id: userId,
       batch_id: id,
       book_id: bookId,
-      action: "delete",
+      action: "reject",
       outcome: "ok",
     });
     return NextResponse.redirect(new URL(`/batches/${id}`, request.url), {
       status: 303,
     });
+  }
+
+  // Permanent delete — hard DB removal, only reachable from the
+  // Trash view's "Delete forever" button (which sends
+  // _action=permanent-delete explicitly).
+  if (action === "permanent-delete") {
+    const [removed] = await db
+      .delete(schema.books)
+      .where(ownerScope)
+      .returning({ id: schema.books.id });
+    if (!removed) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    log("book.action", {
+      request_id: requestId,
+      user_id: userId,
+      batch_id: id,
+      book_id: bookId,
+      action: "permanent-delete",
+      outcome: "ok",
+    });
+    return NextResponse.redirect(new URL(`/batches/${id}`, request.url), {
+      status: 303,
+    });
+  }
+
+  // Restore — flip a rejected row back to pending_review.
+  if (action === "restore") {
+    const [restored] = await db
+      .update(schema.books)
+      .set({ status: "pending_review" })
+      .where(ownerScope)
+      .returning({ id: schema.books.id });
+    if (!restored) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    log("book.action", {
+      request_id: requestId,
+      user_id: userId,
+      batch_id: id,
+      book_id: bookId,
+      action: "restore",
+      outcome: "ok",
+    });
+    const redirectUrl = new URL(`/batches/${id}`, request.url);
+    redirectUrl.hash = `book-${bookId}`;
+    return NextResponse.redirect(redirectUrl, { status: 303 });
   }
 
   if (action === "remove-tag") {
