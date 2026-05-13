@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { Archive, Info, LogOut, Map } from "lucide-react";
+import { Archive, Info, LogOut, Mail, Map } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { getCurrentUserId } from "@/lib/auth";
 import BrandMark from "@/components/BrandMark";
 import { Button, buttonVariants } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
 import SearchBar from "@/components/SearchBar";
+import { FEEDBACK_MAILTO } from "@/lib/feedback";
 
 // One small DB lookup per render — Neon HTTP makes that ~10ms. Returns
 // null on the login page (no session) so we render TopBar without the
@@ -85,6 +86,21 @@ export default async function TopBar() {
           >
             <Map className="size-4" />
           </Link>
+          {/* Feedback / bug report — opens the user's mail client with
+              the operator email and a stub body. Plain anchor so it
+              works without JS, and CSP's default-src 'self' doesn't
+              interfere with the mailto: scheme. */}
+          <a
+            href={FEEDBACK_MAILTO}
+            title="Send feedback / report a bug"
+            className={buttonVariants({
+              variant: "ghost",
+              size: "icon-sm",
+              className: "text-muted-foreground",
+            })}
+          >
+            <Mail className="size-4" />
+          </a>
           <Link
             href="/about"
             title="About Carnegie"

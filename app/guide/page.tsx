@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import { Card, CardContent } from "@/components/ui/card";
+import { FEEDBACK_MAILTO } from "@/lib/feedback";
 
 export const metadata = {
   title: "Guide — Carnegie",
@@ -176,6 +177,16 @@ export default function GuidePage() {
           <h2 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
             If something looks wrong
           </h2>
+          <p className="text-muted-foreground text-sm">
+            Stuck or seeing something unexpected?{" "}
+            <a
+              href={FEEDBACK_MAILTO}
+              className="text-foreground underline underline-offset-2 hover:text-primary"
+            >
+              Email Jonathan
+            </a>{" "}
+            with the batch name and a screenshot. Common cases below.
+          </p>
           <Card>
             <CardContent className="divide-y p-0 text-sm">
               <Trouble
