@@ -67,7 +67,13 @@ export default async function SearchPage({
 
   // Build the WHERE clause from the active filters. Owner filter is always
   // first — every query must scope to the current user.
-  const whereParts: SQL[] = [eq(schema.books.ownerId, userId)];
+  const whereParts: SQL[] = [
+    eq(schema.books.ownerId, userId),
+    // Hide books that belong to soft-deleted batches. Every query
+    // below inner-joins schema.batches, so adding this predicate
+    // once on the shared whereParts covers all of them.
+    sql`${schema.batches.deletedAt} IS NULL`,
+  ];
 
   if (q) {
     const stripped = stripIsbn(q);
@@ -160,12 +166,22 @@ export default async function SearchPage({
       )
       .where(whereClause),
     db.execute<{ tag: string }>(
-      sql`SELECT DISTINCT tag FROM books, unnest(tags) AS tag WHERE books.owner_id = ${userId} ORDER BY tag`,
+      sql`SELECT DISTINCT tag FROM books
+          JOIN batches ON batches.id = books.batch_id,
+          unnest(tags) AS tag
+          WHERE books.owner_id = ${userId}
+            AND batches.deleted_at IS NULL
+          ORDER BY tag`,
     ),
     db
       .select({ id: schema.batches.id, name: schema.batches.name })
       .from(schema.batches)
-      .where(eq(schema.batches.ownerId, userId))
+      .where(
+        and(
+          eq(schema.batches.ownerId, userId),
+          sql`${schema.batches.deletedAt} IS NULL`,
+        ),
+      )
       .orderBy(schema.batches.name),
   ]);
 

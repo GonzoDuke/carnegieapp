@@ -30,10 +30,33 @@ export default function BatchActionsMenu({
     });
   }
 
+  async function undoDelete() {
+    const toastId = toast.loading(`Restoring "${batchName}"…`);
+    try {
+      const res = await fetch(`/api/batches/${batchId}/restore`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.error || `Restore failed (${res.status})`);
+      }
+      toast.success(`Restored "${batchName}"`, { id: toastId });
+      router.push(`/batches/${batchId}`);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err), {
+        id: toastId,
+      });
+    }
+  }
+
   async function deleteBatch() {
     const noun = bookCount === 1 ? "book" : "books";
+    // Delete is now SOFT — confirm copy reflects that. Hard purge
+    // happens (manually) operator-side; from the user's perspective
+    // the batch is "deleted" with a brief Undo window.
     const ok = window.confirm(
-      `Delete batch "${batchName}" and all ${bookCount} ${noun}? This cannot be undone.`,
+      `Delete batch "${batchName}" and its ${bookCount} ${noun}? You can undo from the toast.`,
     );
     if (!ok) return;
     setDeleting(true);
@@ -43,6 +66,18 @@ export default function BatchActionsMenu({
         const payload = await res.json().catch(() => null);
         throw new Error(payload?.error || `Delete failed (${res.status})`);
       }
+      // Toast first, then navigate. Sonner's toast store survives
+      // a soft router.push so the Undo button stays interactive on
+      // the home page. Duration is bumped to ~10s since batch
+      // delete is more destructive than the per-book reject — we
+      // want a real recovery window.
+      toast.success(`Deleted "${batchName}"`, {
+        duration: 10000,
+        action: {
+          label: "Undo",
+          onClick: () => undoDelete(),
+        },
+      });
       router.push("/");
       router.refresh();
     } catch (err) {

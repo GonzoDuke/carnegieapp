@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { AlertTriangle, ArrowRight, Check, Sparkles } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
@@ -76,15 +76,25 @@ export default async function HomePage() {
           )`,
         })
         .from(schema.batches)
-        .where(eq(schema.batches.ownerId, userId))
+        .where(
+          and(
+            eq(schema.batches.ownerId, userId),
+            isNull(schema.batches.deletedAt),
+          ),
+        )
         .orderBy(desc(schema.batches.createdAt)),
       db
         .select({ n: count() })
         .from(schema.books)
+        .innerJoin(
+          schema.batches,
+          eq(schema.books.batchId, schema.batches.id),
+        )
         .where(
           and(
             eq(schema.books.ownerId, userId),
             eq(schema.books.status, "pending_review"),
+            isNull(schema.batches.deletedAt),
           ),
         ),
       getBudget(userId),
@@ -113,6 +123,7 @@ export default async function HomePage() {
           and(
             eq(schema.books.ownerId, userId),
             eq(schema.books.status, "pending_review"),
+            isNull(schema.batches.deletedAt),
           ),
         )
         .orderBy(asc(sql`COALESCE(${schema.books.confidence}, 1)`))
@@ -122,10 +133,15 @@ export default async function HomePage() {
           canonical: sql<string>`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10})`,
         })
         .from(schema.books)
+        .innerJoin(
+          schema.batches,
+          eq(schema.books.batchId, schema.batches.id),
+        )
         .where(
           and(
             eq(schema.books.ownerId, userId),
             sql`${schema.books.isbn13} IS NOT NULL OR ${schema.books.isbn10} IS NOT NULL`,
+            isNull(schema.batches.deletedAt),
           ),
         )
         .groupBy(

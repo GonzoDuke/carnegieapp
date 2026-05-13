@@ -52,12 +52,15 @@ export default async function DuplicatesPage() {
     .where(
       and(
         eq(schema.books.ownerId, userId),
+        sql`${schema.batches.deletedAt} IS NULL`,
         sql`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10}) IN (
-          SELECT COALESCE(isbn_13, isbn_10) AS canonical
-          FROM books
-          WHERE owner_id = ${userId}
-            AND (isbn_13 IS NOT NULL OR isbn_10 IS NOT NULL)
-          GROUP BY COALESCE(isbn_13, isbn_10)
+          SELECT COALESCE(b.isbn_13, b.isbn_10) AS canonical
+          FROM books b
+          JOIN batches ba ON ba.id = b.batch_id
+          WHERE b.owner_id = ${userId}
+            AND ba.deleted_at IS NULL
+            AND (b.isbn_13 IS NOT NULL OR b.isbn_10 IS NOT NULL)
+          GROUP BY COALESCE(b.isbn_13, b.isbn_10)
           HAVING COUNT(*) > 1
         )`,
       ),

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { requireUserId } from "@/lib/auth";
 import {
   ArrowLeft,
@@ -55,12 +55,18 @@ export default async function BatchDetailPage({
 
   const db = getDb();
   // Filter by both id and ownerId so a batch belonging to another user
-  // 404s rather than reveals existence.
+  // 404s rather than reveals existence. Soft-deleted batches also
+  // 404 from the read surface — they're only reachable via the
+  // explicit /restore POST until purged.
   const [batch] = await db
     .select()
     .from(schema.batches)
     .where(
-      and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)),
+      and(
+        eq(schema.batches.id, id),
+        eq(schema.batches.ownerId, userId),
+        isNull(schema.batches.deletedAt),
+      ),
     )
     .limit(1);
   if (!batch) notFound();

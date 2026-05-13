@@ -45,6 +45,12 @@ export const batches = pgTable(
     // Set the last time this batch was downloaded as CSV. Used to flag batches
     // already pushed to LibraryThing so the user doesn't accidentally re-import.
     exportedAt: timestamp("exported_at", { withTimezone: true }),
+    // Soft-delete marker. Non-null = the user clicked "Delete batch"
+    // and the batch should be hidden from all listing surfaces. A
+    // ~10-second Undo toast on the home page can flip this back to
+    // null; otherwise the row stays soft-deleted indefinitely until
+    // an operator-side purge (no auto-cleanup cron yet at our scale).
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

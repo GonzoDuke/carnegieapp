@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
@@ -11,7 +11,12 @@ export async function GET() {
   const rows = await db
     .select()
     .from(schema.batches)
-    .where(eq(schema.batches.ownerId, userId))
+    .where(
+      and(
+        eq(schema.batches.ownerId, userId),
+        isNull(schema.batches.deletedAt),
+      ),
+    )
     .orderBy(desc(schema.batches.createdAt));
   return NextResponse.json({ batches: rows });
 }

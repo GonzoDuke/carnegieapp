@@ -63,6 +63,7 @@ export default async function ArchivePage() {
       and(
         eq(schema.batches.ownerId, userId),
         sql`${schema.batches.exportedAt} IS NOT NULL`,
+        sql`${schema.batches.deletedAt} IS NULL`,
       ),
     )
     .orderBy(desc(schema.batches.exportedAt));
