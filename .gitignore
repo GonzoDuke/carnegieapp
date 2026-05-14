@@ -48,6 +48,7 @@ USERS.md
 JMK.md
 TESTER_GUIDE.md
 COSTS.md
+PLAYBOOK.md
 
 # Playwright e2e artifacts — recordings, traces, reports
 /test-results
