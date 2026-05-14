@@ -49,6 +49,9 @@ JMK.md
 TESTER_GUIDE.md
 COSTS.md
 PLAYBOOK.md
+PLAYBOOK.docx
+reference.docx
+reference_custom.docx
 
 # Playwright e2e artifacts — recordings, traces, reports
 /test-results
