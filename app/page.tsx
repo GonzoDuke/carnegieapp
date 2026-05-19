@@ -140,7 +140,12 @@ export default async function HomePage() {
         .where(
           and(
             eq(schema.books.ownerId, userId),
-            sql`${schema.books.isbn13} IS NOT NULL OR ${schema.books.isbn10} IS NOT NULL`,
+            // Parens around the OR are load-bearing: without them, SQL's
+            // `AND` binds tighter than `OR`, so the deletedAt filter ends
+            // up on the wrong side of the OR and books in soft-deleted
+            // batches sneak past the predicate. Cost us a phantom-
+            // duplicate banner that took two passes to track down.
+            sql`(${schema.books.isbn13} IS NOT NULL OR ${schema.books.isbn10} IS NOT NULL)`,
             isNull(schema.batches.deletedAt),
           ),
         )
