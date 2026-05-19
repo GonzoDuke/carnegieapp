@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Crop as CropIcon, Images, Loader2, X } from "lucide-react";
+import {
+  Camera,
+  Crop as CropIcon,
+  Images,
+  Loader2,
+  SkipForward,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import ReactCrop, {
   centerCrop,
@@ -26,39 +33,62 @@ type ApiSummary = {
   budget: { used: number; limit: number; remaining: number };
 };
 
+type Aggregate = {
+  succeeded: number;
+  failed: { name: string; error: string }[];
+  detected: number;
+  inserted: number;
+  budget: ApiSummary["budget"] | null;
+};
+
+const EMPTY_AGGREGATE: Aggregate = {
+  succeeded: 0,
+  failed: [],
+  detected: 0,
+  inserted: 0,
+  budget: null,
+};
+
 export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
   const router = useRouter();
   // Two separate file inputs — iOS uses the input's attributes to decide
   // between camera and library, so we expose both as explicit choices
-  // rather than hoping the OS shows a chooser.
+  // rather than hoping the OS shows a chooser. The library input is now
+  // `multiple`; camera capture stays single-shot (phones can't multi-
+  // shoot through <input capture> anyway).
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [busy, setBusy] = useState(false);
-  const [pickedFile, setPickedFile] = useState<File | null>(null);
+  // Queue of pending photos. Current photo is queue[0]; finished/skipped
+  // photos are shifted off as we go. Single-shot picks (camera, or one
+  // file from the library) put a 1-length queue here, and the existing
+  // crop+analyze UI behaves exactly as before.
+  const [queue, setQueue] = useState<File[]>([]);
+  const [totalQueued, setTotalQueued] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [crop, setCrop] = useState<Crop>();
   const [pixelCrop, setPixelCrop] = useState<PixelCrop | null>(null);
+  const [aggregate, setAggregate] = useState<Aggregate>(EMPTY_AGGREGATE);
 
-  // Free up the object URL when the user cancels or the component unmounts.
+  const currentFile = queue[0] ?? null;
+  const isBatch = totalQueued > 1;
+  const photoIndex = totalQueued - queue.length + 1; // 1-based
+
+  // Generate / clean up preview URL as the current photo changes.
+  // Each photo starts with no crop set, so onImageLoad re-initializes to
+  // the full-image rectangle.
   useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
-
-  function onFileChosen(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPickedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    if (!currentFile) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(currentFile);
+    setPreviewUrl(url);
     setCrop(undefined);
     setPixelCrop(null);
-    // Clear both inputs so re-picking the same file still triggers onChange.
-    if (cameraInputRef.current) cameraInputRef.current.value = "";
-    if (libraryInputRef.current) libraryInputRef.current.value = "";
-  }
+    return () => URL.revokeObjectURL(url);
+  }, [currentFile]);
 
   function onImageLoad(event: React.SyntheticEvent<HTMLImageElement>) {
     // Default the crop rectangle to the full image so "Analyze" with no
@@ -72,22 +102,75 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
     setCrop(initial);
   }
 
-  function cancel() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPickedFile(null);
-    setPreviewUrl(null);
+  function onFileChosen(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+    setQueue(files);
+    setTotalQueued(files.length);
+    setAggregate(EMPTY_AGGREGATE);
+    // Clear both inputs so re-picking the same file still triggers onChange.
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (libraryInputRef.current) libraryInputRef.current.value = "";
+  }
+
+  function cancelAll() {
+    // Bail out of the whole queue. If we're partway through a batch,
+    // surface what was already processed.
+    if (totalQueued > 1 && (aggregate.succeeded > 0 || aggregate.failed.length > 0)) {
+      finishBatch(aggregate);
+    }
+    setQueue([]);
+    setTotalQueued(0);
+    setAggregate(EMPTY_AGGREGATE);
     setCrop(undefined);
     setPixelCrop(null);
   }
 
+  function finishBatch(finalAggregate: Aggregate) {
+    if (finalAggregate.succeeded === 0 && finalAggregate.failed.length === 0) {
+      return;
+    }
+    const headline =
+      finalAggregate.succeeded === 1
+        ? `Processed 1 photo · detected ${finalAggregate.detected} books`
+        : `Processed ${finalAggregate.succeeded} photos · detected ${finalAggregate.detected} books`;
+    const description = [
+      `Added ${finalAggregate.inserted} to review.`,
+      finalAggregate.failed.length > 0
+        ? `${finalAggregate.failed.length} ${
+            finalAggregate.failed.length === 1 ? "photo" : "photos"
+          } failed.`
+        : null,
+      finalAggregate.budget
+        ? `Budget left today: ${finalAggregate.budget.remaining}/${finalAggregate.budget.limit}.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    if (finalAggregate.failed.length > 0 && finalAggregate.succeeded === 0) {
+      toast.error("All photos failed", { description });
+    } else if (finalAggregate.failed.length > 0) {
+      toast.warning(headline, { description });
+    } else {
+      toast.success(headline, { description });
+    }
+    router.refresh();
+  }
+
   async function analyze() {
-    if (!pickedFile) return;
+    if (!currentFile) return;
     setBusy(true);
-    const toastId = toast.loading("Compressing & analyzing photo…");
+    const label = isBatch
+      ? `Analyzing photo ${photoIndex} of ${totalQueued}…`
+      : "Compressing & analyzing photo…";
+    const toastId = toast.loading(label);
+
+    let success = false;
+    let nextAggregate = aggregate;
 
     try {
       const cropForExport = computeNaturalCrop(pixelCrop, imgRef.current);
-      const compressed = await processImage(pickedFile, cropForExport);
+      const compressed = await processImage(currentFile, cropForExport);
 
       const form = new FormData();
       form.append("image", compressed, "shelf.jpg");
@@ -102,7 +185,24 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
       }
 
       const summary = json?.summary as ApiSummary | undefined;
-      if (summary) {
+      nextAggregate = {
+        succeeded: aggregate.succeeded + 1,
+        failed: aggregate.failed,
+        detected: aggregate.detected + (summary?.detected ?? 0),
+        inserted: aggregate.inserted + (summary?.inserted ?? 0),
+        budget: summary?.budget ?? aggregate.budget,
+      };
+      setAggregate(nextAggregate);
+      success = true;
+
+      if (isBatch) {
+        toast.success(
+          `Photo ${photoIndex}: ${summary?.detected ?? 0} detected · ${
+            summary?.inserted ?? 0
+          } added`,
+          { id: toastId },
+        );
+      } else if (summary) {
         toast.success(
           `Detected ${summary.detected} books · added ${summary.inserted} to review.`,
           {
@@ -113,19 +213,54 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
       } else {
         toast.success("Photo processed.", { id: toastId });
       }
-      cancel();
-      router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err), {
-        id: toastId,
-      });
+      const message = err instanceof Error ? err.message : String(err);
+      nextAggregate = {
+        ...aggregate,
+        failed: [...aggregate.failed, { name: currentFile.name, error: message }],
+      };
+      setAggregate(nextAggregate);
+      if (isBatch) {
+        toast.error(`Photo ${photoIndex}: ${message}`, { id: toastId });
+      } else {
+        toast.error(message, { id: toastId });
+      }
     } finally {
       setBusy(false);
+    }
+
+    // Advance only in batch mode OR on success. Single-photo failures
+    // keep the current photo so the user can retry without re-picking
+    // (matches the pre-multi-import behavior).
+    const shouldAdvance = isBatch || success;
+    if (!shouldAdvance) return;
+
+    const remaining = queue.slice(1);
+    setQueue(remaining);
+    if (remaining.length === 0) {
+      if (isBatch) {
+        finishBatch(nextAggregate);
+      } else if (success) {
+        router.refresh();
+      }
+      setTotalQueued(0);
+      setAggregate(EMPTY_AGGREGATE);
+    }
+  }
+
+  function skipCurrent() {
+    if (busy || !isBatch) return;
+    const remaining = queue.slice(1);
+    setQueue(remaining);
+    if (remaining.length === 0) {
+      finishBatch(aggregate);
+      setTotalQueued(0);
+      setAggregate(EMPTY_AGGREGATE);
     }
   }
 
   // No file picked yet — show two capture options.
-  if (!previewUrl) {
+  if (!currentFile) {
     return (
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
@@ -152,7 +287,7 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
             <Images className="size-5" />
             <span className="text-sm font-medium">From library</span>
             <span className="text-muted-foreground text-xs font-normal">
-              Pick an existing photo
+              Pick one or more
             </span>
           </Button>
         </div>
@@ -170,6 +305,7 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
           ref={libraryInputRef}
           type="file"
           accept="image/*"
+          multiple
           onChange={onFileChosen}
           disabled={busy}
           className="sr-only"
@@ -181,6 +317,20 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
   // File picked — show crop + analyze flow.
   return (
     <div className="space-y-3">
+      {isBatch && (
+        <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span>
+            Photo <span className="text-foreground font-medium">{photoIndex}</span>{" "}
+            of {totalQueued}
+          </span>
+          {(aggregate.succeeded > 0 || aggregate.failed.length > 0) && (
+            <span>
+              {aggregate.succeeded} done · {aggregate.detected} detected
+              {aggregate.failed.length > 0 ? ` · ${aggregate.failed.length} failed` : ""}
+            </span>
+          )}
+        </div>
+      )}
       <div className="text-muted-foreground flex items-center gap-1 text-xs">
         <CropIcon className="size-3" />
         Drag the corners to crop, or click Analyze to use the full image.
@@ -197,7 +347,7 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={imgRef}
-            src={previewUrl}
+            src={previewUrl ?? undefined}
             alt="Captured shelf"
             onLoad={onImageLoad}
             className="max-h-[60vh] w-full object-contain"
@@ -205,7 +355,7 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
         </ReactCrop>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           onClick={analyze}
@@ -217,17 +367,33 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
           ) : (
             <Camera className="size-4" />
           )}
-          {busy ? "Analyzing…" : "Analyze"}
+          {busy
+            ? "Analyzing…"
+            : isBatch
+              ? `Analyze (${photoIndex}/${totalQueued})`
+              : "Analyze"}
         </Button>
+        {isBatch && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={skipCurrent}
+            disabled={busy}
+            title="Skip this photo and move to the next"
+          >
+            <SkipForward className="size-4" />
+            Skip
+          </Button>
+        )}
         <Button
           type="button"
           variant="outline"
-          onClick={cancel}
+          onClick={cancelAll}
           disabled={busy}
-          title="Discard photo"
+          title={isBatch ? "Discard remaining photos" : "Discard photo"}
         >
           <X className="size-4" />
-          Cancel
+          {isBatch ? "Cancel all" : "Cancel"}
         </Button>
       </div>
     </div>
