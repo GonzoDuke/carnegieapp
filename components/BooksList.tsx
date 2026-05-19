@@ -8,6 +8,8 @@ import {
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
+  Eye,
+  EyeOff,
   Sparkles,
   Trash2,
   Undo2,
@@ -29,19 +31,30 @@ type Props = {
 };
 
 const EXPAND_PREF_KEY = "carnegie:books-expanded";
+const HIDE_CONFIRMED_PREF_KEY = "carnegie:books-hide-confirmed";
 
 // useSyncExternalStore subscribe — fires the callback when the storage
 // event fires (cross-tab updates) AND for our own writes via a manually
-// dispatched event below. Returns a cleanup.
+// dispatched event below. Returns a cleanup. Shared by every per-key
+// reader below; the storage event doesn't say WHICH key changed, so
+// all readers re-evaluate on any write, which is fine at this scale.
 function subscribeToStoragePref(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   window.addEventListener("storage", callback);
   return () => window.removeEventListener("storage", callback);
 }
 
-function getClientPref(): string | null {
+function getExpandAllPref(): string | null {
   try {
     return localStorage.getItem(EXPAND_PREF_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function getHideConfirmedPref(): string | null {
+  try {
+    return localStorage.getItem(HIDE_CONFIRMED_PREF_KEY);
   } catch {
     return null;
   }
@@ -51,15 +64,22 @@ function getServerPref(): string | null {
   return null;
 }
 
-function writePref(next: boolean) {
+function writeExpandAllPref(next: boolean) {
+  writeStringPref(EXPAND_PREF_KEY, next ? "1" : "0");
+}
+
+function writeHideConfirmedPref(next: boolean) {
+  writeStringPref(HIDE_CONFIRMED_PREF_KEY, next ? "1" : "0");
+}
+
+function writeStringPref(key: string, value: string) {
   try {
-    localStorage.setItem(EXPAND_PREF_KEY, next ? "1" : "0");
+    localStorage.setItem(key, value);
     // The native `storage` event only fires in OTHER tabs. Dispatch
     // one ourselves so our useSyncExternalStore subscribers update.
     window.dispatchEvent(new Event("storage"));
   } catch {
-    /* localStorage blocked — preference is still applied this session via
-       direct setExpandAll fallback (handled at the call site) */
+    /* localStorage blocked — preference is applied only for this session */
   }
 }
 
@@ -71,38 +91,60 @@ export default function BooksList({ batchId, books }: Props) {
   // useSyncExternalStore — no effect needed for the read, no
   // setState-in-effect lint pain. "1" = expanded, "0" = collapsed,
   // null = no preference (the native <details> default takes over).
-  const stored = useSyncExternalStore(
+  const expandStored = useSyncExternalStore(
     subscribeToStoragePref,
-    getClientPref,
+    getExpandAllPref,
     getServerPref,
   );
   const expandAll: boolean | null =
-    stored === "1" ? true : stored === "0" ? false : null;
+    expandStored === "1" ? true : expandStored === "0" ? false : null;
+  // hide-confirmed preference: when true, the books list filters out
+  // status=confirmed rows so the user can focus on the review queue.
+  // Default off ("0" / null both mean off).
+  const hideConfirmedStored = useSyncExternalStore(
+    subscribeToStoragePref,
+    getHideConfirmedPref,
+    getServerPref,
+  );
+  const hideConfirmed = hideConfirmedStored === "1";
   const listRef = useRef<HTMLUListElement | null>(null);
 
+  // Books actually rendered — derived AFTER the hideConfirmed read.
+  // Everything downstream (selection IDs, the expand-all effect, the
+  // list render) keys off this filtered array so toggling the filter
+  // re-derives consistently.
+  const visibleBooks = useMemo(
+    () =>
+      hideConfirmed ? books.filter((b) => b.status !== "confirmed") : books,
+    [books, hideConfirmed],
+  );
+  const hiddenConfirmedCount = hideConfirmed
+    ? books.filter((b) => b.status === "confirmed").length
+    : 0;
+
   // Sync every <details> in the list to the current expandAll state.
-  // Re-runs when the books array changes so newly-added rows pick up
-  // the user's preference too. When expandAll is null (no preference)
-  // we leave each <details> alone — the browser's default behavior
-  // takes over.
+  // Re-runs when the visible books change so newly-added rows (and
+  // rows that became visible after a filter toggle) pick up the
+  // preference too.
   useEffect(() => {
     if (expandAll === null) return;
     const els = listRef.current?.querySelectorAll<HTMLDetailsElement>("details");
     els?.forEach((el) => {
       el.open = expandAll;
     });
-  }, [expandAll, books]);
+  }, [expandAll, visibleBooks]);
 
   function toggleExpandAll() {
     // expandAll could be null (no pref yet); first click goes to expanded.
-    writePref(expandAll !== true);
+    writeExpandAllPref(expandAll !== true);
   }
 
   // The state set may contain stale IDs after a router.refresh removed some
   // books — derive the live selection on each render rather than syncing
   // back to state (avoids cascading renders and a "set state in effect"
-  // lint hit).
-  const visibleIds = useMemo(() => books.map((b) => b.id), [books]);
+  // lint hit). visibleIds is keyed off visibleBooks so confirmed rows
+  // that get hidden by the filter drop out of the selection too.
+  const visibleIds = useMemo(() => visibleBooks.map((b) => b.id), [visibleBooks]);
   const validIdSet = useMemo(() => new Set(visibleIds), [visibleIds]);
   const liveSelection = useMemo(
     () => Array.from(selected).filter((id) => validIdSet.has(id)),
@@ -203,11 +245,54 @@ export default function BooksList({ batchId, books }: Props) {
                 </>
               )}
             </Button>
+            {/* Hide confirmed — focus the list on the review queue.
+                Preference persists via localStorage so the next visit
+                remembers the user's choice. */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => writeHideConfirmedPref(!hideConfirmed)}
+              className="text-muted-foreground hover:text-foreground"
+              title={
+                hideConfirmed
+                  ? "Show confirmed books too"
+                  : "Hide confirmed books from this list"
+              }
+            >
+              {hideConfirmed ? (
+                <>
+                  <Eye className="size-3.5" />
+                  Show confirmed
+                </>
+              ) : (
+                <>
+                  <EyeOff className="size-3.5" />
+                  Hide confirmed
+                </>
+              )}
+            </Button>
           </div>
         )}
       </div>
+      {visibleBooks.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="text-muted-foreground py-8 text-center text-sm">
+            All confirmed — {hiddenConfirmedCount}{" "}
+            {hiddenConfirmedCount === 1 ? "book" : "books"} hidden by the filter.{" "}
+            <button
+              type="button"
+              onClick={() => writeHideConfirmedPref(false)}
+              className="text-foreground underline-offset-2 hover:underline"
+            >
+              Show all
+            </button>
+            .
+          </CardContent>
+        </Card>
+      ) : null}
       <ul ref={listRef} className="space-y-2">
-        {books.map((book) => {
+        {visibleBooks.map((book) => {
           const dot = confidenceDot(book.source, book.confidence);
           const isChecked = selected.has(book.id);
           return (
