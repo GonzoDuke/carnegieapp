@@ -138,7 +138,7 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
           >
             <Camera className="size-5" />
             <span className="text-sm font-medium">Take photo</span>
-            <span className="text-muted-foreground text-[11px] font-normal">
+            <span className="text-muted-foreground text-xs font-normal">
               Use the camera
             </span>
           </Button>
@@ -151,7 +151,7 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
           >
             <Images className="size-5" />
             <span className="text-sm font-medium">From library</span>
-            <span className="text-muted-foreground text-[11px] font-normal">
+            <span className="text-muted-foreground text-xs font-normal">
               Pick an existing photo
             </span>
           </Button>

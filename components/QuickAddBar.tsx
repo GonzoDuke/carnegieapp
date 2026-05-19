@@ -53,7 +53,7 @@ export default function QuickAddBar({ batches }: Props) {
               The scan-icon button sits absolute-positioned over the right
               edge of the input so it doesn't consume horizontal space. */}
           <div className="grid w-full min-w-0 gap-1.5 sm:w-auto sm:flex-1">
-            <Label htmlFor="quick-add-isbn" className="text-[11px] font-medium uppercase tracking-wider">
+            <Label htmlFor="quick-add-isbn" className="text-xs font-medium uppercase tracking-wider">
               Quick add ISBN
             </Label>
             <div className="relative">
@@ -83,7 +83,7 @@ export default function QuickAddBar({ batches }: Props) {
           </div>
           {/* On phones, batch grows to fill the second row alongside Add. */}
           <div className="grid min-w-0 flex-1 gap-1.5 sm:flex-none">
-            <Label htmlFor="quick-add-batch" className="text-[11px] font-medium uppercase tracking-wider">
+            <Label htmlFor="quick-add-batch" className="text-xs font-medium uppercase tracking-wider">
               Batch
             </Label>
             <select

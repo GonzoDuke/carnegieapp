@@ -96,7 +96,7 @@ export default function AboutPage() {
           <p className="text-muted-foreground text-xs italic">
             Made in {new Date().getFullYear()} by Jonathan Kelly. © All rights reserved.
           </p>
-          <p className="text-muted-foreground/70 text-[11px] tabular-nums">
+          <p className="text-muted-foreground/70 text-xs tabular-nums">
             Carnegie v{pkg.version}
           </p>
         </div>
@@ -114,7 +114,7 @@ function ColophonGroup({
 }) {
   return (
     <div>
-      <h3 className="text-muted-foreground mb-2 text-[11px] font-medium uppercase tracking-[0.22em]">
+      <h3 className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-[0.22em]">
         {label}
       </h3>
       <ul className="text-foreground space-y-1 text-base">{children}</ul>

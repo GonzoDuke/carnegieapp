@@ -274,7 +274,7 @@ export default function BooksList({ batchId, books }: Props) {
 
                     {book.tags.length > 0 && (
                       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                        <span className="text-muted-foreground text-[10px] font-medium uppercase tracking-wider">
+                        <span className="text-muted-foreground text-[0.7rem] font-medium uppercase tracking-wider">
                           Tags
                         </span>
                         {book.tags.map((tag) => (
@@ -289,7 +289,7 @@ export default function BooksList({ batchId, books }: Props) {
                             <button
                               type="submit"
                               title={`Remove tag "${tag}"`}
-                              className="bg-secondary text-secondary-foreground hover:bg-destructive/10 hover:text-destructive group inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors"
+                              className="bg-secondary text-secondary-foreground hover:bg-destructive/10 hover:text-destructive group inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors"
                             >
                               <span>{tag}</span>
                               <span className="text-muted-foreground group-hover:text-destructive">
@@ -302,7 +302,7 @@ export default function BooksList({ batchId, books }: Props) {
                     )}
 
                     {book.lcc && (
-                      <div className="mt-2 flex items-center gap-2 text-[11px]">
+                      <div className="mt-2 flex items-center gap-2 text-xs">
                         <span className="text-muted-foreground font-medium uppercase tracking-wider">
                           LCC
                         </span>

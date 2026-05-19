@@ -36,7 +36,7 @@ export default function GlobalError({
               If it keeps happening, screenshot this page and send it to Joe.
             </p>
             {error.digest && (
-              <p className="text-muted-foreground/70 font-mono text-[11px]">
+              <p className="text-muted-foreground/70 font-mono text-xs">
                 Ref: {error.digest}
               </p>
             )}

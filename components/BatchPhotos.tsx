@@ -127,7 +127,7 @@ export default function BatchPhotos({ uploads }: Props) {
               loading="lazy"
               className="size-full object-cover transition-transform group-hover:scale-105"
             />
-            <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.7rem] font-medium text-white">
               {u.insertedCount} book{u.insertedCount === 1 ? "" : "s"}
             </span>
           </button>

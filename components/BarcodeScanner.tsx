@@ -90,7 +90,7 @@ export default function BarcodeScanner({ batchId }: BarcodeScannerProps) {
           <span className="text-sm font-medium">
             {isSubmitting ? "Saving…" : "Scan barcode"}
           </span>
-          <span className="text-muted-foreground text-[11px] font-normal">
+          <span className="text-muted-foreground text-xs font-normal">
             Point camera at ISBN barcode
           </span>
         </Button>

@@ -233,7 +233,7 @@ export default async function BatchDetailPage({
             )}
 
             {batch.exportedAt && (
-              <div className="text-primary inline-flex items-center gap-1 text-[11px] font-medium">
+              <div className="text-primary inline-flex items-center gap-1 text-xs font-medium">
                 <Check className="size-3" />
                 <span>
                   Sent to LibraryThing{" "}
@@ -471,7 +471,7 @@ export default async function BatchDetailPage({
         )}
 
         <Separator />
-        <footer className="text-muted-foreground text-[11px]">
+        <footer className="text-muted-foreground text-xs">
           Vision API: {budget.used} / {budget.limit} used today (UTC).
           {budget.exhausted && " Cap hit — photo extraction disabled until tomorrow."}
         </footer>
@@ -501,7 +501,7 @@ function StatChip({
       <span className="font-heading text-sm font-semibold tabular-nums">
         {count}
       </span>
-      <span className="text-[11px]">{label}</span>
+      <span className="text-xs">{label}</span>
     </span>
   );
 }

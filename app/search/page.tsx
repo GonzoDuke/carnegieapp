@@ -303,7 +303,7 @@ export default async function SearchPage({
           {hasFilters && (
             <Link
               href="/search"
-              className="text-muted-foreground hover:text-foreground text-[11px] underline-offset-2 hover:underline"
+              className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
             >
               Clear all
             </Link>
@@ -353,7 +353,7 @@ export default async function SearchPage({
                           {book.isbn13 && ` · ${book.isbn13}`}
                           {book.isbn10 && !book.isbn13 && ` · ${book.isbn10}`}
                         </p>
-                        <p className="text-muted-foreground text-[11px]">
+                        <p className="text-muted-foreground text-xs">
                           In <span className="text-foreground">{book.batchName}</span>
                           {book.batchLocation ? ` · ${book.batchLocation}` : ""}
                         </p>
@@ -438,7 +438,7 @@ function FilterPills({
             <Link
               key={o.value}
               href={href}
-              className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
                 active
                   ? "border-primary/40 bg-primary text-primary-foreground"
                   : "border-border bg-background hover:bg-muted text-foreground/80"
@@ -466,7 +466,7 @@ function PaginationLink({
 }) {
   if (disabled) {
     return (
-      <span className="text-muted-foreground/50 inline-flex h-7 cursor-not-allowed items-center gap-1 rounded border px-2.5 text-[11px]">
+      <span className="text-muted-foreground/50 inline-flex h-7 cursor-not-allowed items-center gap-1 rounded border px-2.5 text-xs">
         {label}
       </span>
     );
@@ -474,7 +474,7 @@ function PaginationLink({
   return (
     <Link
       href={buildHref({ ...filters, page: String(page) })}
-      className="hover:bg-muted inline-flex h-7 items-center gap-1 rounded border px-2.5 text-[11px] transition-colors"
+      className="hover:bg-muted inline-flex h-7 items-center gap-1 rounded border px-2.5 text-xs transition-colors"
     >
       {label}
     </Link>

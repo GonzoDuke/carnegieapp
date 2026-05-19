@@ -156,7 +156,7 @@ export default function LookupDebugPage() {
             </summary>
             <Card className="mt-2">
               <CardContent className="pt-4">
-                <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-snug">
+                <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs leading-snug">
                   {JSON.stringify(outcome.attempts, null, 2)}
                 </pre>
               </CardContent>

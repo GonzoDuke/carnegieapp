@@ -134,4 +134,20 @@
   html {
     @apply font-sans;
   }
+
+  /* Bump root font-size on desktop so text and rem-based spacing
+     scale proportionally. The workbench layout caps at 96rem; with
+     a 16px root that's 1536px, but on a 1440p/2K monitor text was
+     reading as too small. Mobile stays at the default 16px so the
+     PWA's tuned phone layout isn't affected. */
+  @media (min-width: 1024px) {
+    html {
+      font-size: 17px;
+    }
+  }
+  @media (min-width: 1536px) {
+    html {
+      font-size: 18px;
+    }
+  }
 }

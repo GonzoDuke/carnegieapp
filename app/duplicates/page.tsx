@@ -115,7 +115,7 @@ export default async function DuplicatesPage() {
               <li key={isbn}>
                 <Card>
                   <CardContent className="p-4">
-                    <div className="text-muted-foreground mb-3 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider">
+                    <div className="text-muted-foreground mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
                       <span>ISBN</span>
                       <code className="bg-muted rounded px-1.5 py-0.5 font-mono normal-case tracking-normal">
                         {isbn}
@@ -151,7 +151,7 @@ export default async function DuplicatesPage() {
                                 ? book.authors.join(" / ")
                                 : "Unknown author"}
                             </p>
-                            <p className="text-muted-foreground text-[11px]">
+                            <p className="text-muted-foreground text-xs">
                               In{" "}
                               <Link
                                 href={`/batches/${book.batchId}#book-${book.id}`}
