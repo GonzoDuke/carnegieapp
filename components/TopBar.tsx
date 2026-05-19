@@ -28,7 +28,7 @@ export default async function TopBar() {
   const userName = await loadCurrentUserName();
   return (
     <header className="bg-background/80 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-30 border-b backdrop-blur">
-      <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-3 px-4">
+      <div className="mx-auto flex h-16 w-full max-w-[96rem] items-center justify-between gap-3 px-4">
         <Link
           href="/"
           className="text-foreground hover:text-primary group flex items-center gap-2.5 transition-colors"

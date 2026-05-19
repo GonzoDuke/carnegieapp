@@ -84,7 +84,7 @@ export default async function DuplicatesPage() {
     <>
       <TopBar />
 
-      <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
+      <main className="mx-auto w-full max-w-[96rem] space-y-6 px-4 py-6">
         <Link
           href="/"
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors"

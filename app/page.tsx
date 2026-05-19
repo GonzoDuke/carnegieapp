@@ -198,7 +198,7 @@ export default async function HomePage() {
     <>
       <TopBar />
 
-      <main className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:space-y-12 sm:py-10">
+      <main className="mx-auto w-full max-w-[96rem] space-y-8 px-4 py-6 sm:space-y-12 sm:py-10">
         {/* In-flight status — big serif statement of work state, plus a
             "where you left off" link to the most recently active batch.
             This replaces the old welcome hero / 4-up stat tiles; this

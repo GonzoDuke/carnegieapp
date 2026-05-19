@@ -73,7 +73,7 @@ export default function LookupDebugPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8">
+    <main className="mx-auto w-full max-w-[96rem] space-y-6 px-4 py-8">
       <header>
         <h1 className="font-heading text-3xl font-semibold tracking-tight">
           Lookup debug

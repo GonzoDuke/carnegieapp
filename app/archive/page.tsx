@@ -74,7 +74,7 @@ export default async function ArchivePage() {
     <>
       <TopBar />
 
-      <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-8">
+      <main className="mx-auto w-full max-w-[96rem] space-y-8 px-4 py-8">
         <Link
           href="/"
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"

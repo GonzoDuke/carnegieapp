@@ -48,7 +48,7 @@ export default async function QuickFillPage({ params }: { params: Params }) {
   return (
     <>
       <TopBar />
-      <main className="mx-auto w-full max-w-2xl space-y-5 px-4 py-6">
+      <main className="mx-auto w-full max-w-[96rem] space-y-5 px-4 py-6">
         <Link
           href={`/batches/${id}`}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors"
