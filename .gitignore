@@ -68,3 +68,5 @@ eval/truth/*
 !eval/truth/.gitkeep
 eval/baseline*.json
 eval/_*.log
+
+.vercel
