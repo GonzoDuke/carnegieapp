@@ -19,6 +19,20 @@ export const LIBRARYTHING_COLUMNS = [
 
 type CsvBatch = Pick<Batch, "name" | "location">;
 
+// Filesystem-safe slug for a batch name, used to build download filenames
+// (both the CSV export and the whole-batch ZIP). Lowercased, non-alnum runs
+// collapsed to hyphens, trimmed, capped, with a fallback so empty/symbol-only
+// names still produce a usable name.
+export function batchSlug(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "batch"
+  );
+}
+
 export function buildLibraryThingCsv(books: Book[], batch: CsvBatch): string {
   // Location goes into Comments — LibraryThing has no first-class field for
   // it and Comments is the right place for free-form context per book.

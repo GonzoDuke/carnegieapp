@@ -8,6 +8,7 @@ import {
   Camera,
   Check,
   ChevronRight,
+  Package,
   Pencil,
   ScanBarcode,
   Sparkles,
@@ -212,7 +213,8 @@ export default async function BatchDetailPage({
                 or all-exported batch produces no row at all. */}
             {(quickFillCount > 0 ||
               bulkEligibleCount > 0 ||
-              confirmedCount > 0) && (
+              confirmedCount > 0 ||
+              uploads.length > 0) && (
               <div className="flex flex-wrap items-center gap-2">
                 {quickFillCount > 0 && (
                   <Link
@@ -229,6 +231,20 @@ export default async function BatchDetailPage({
                   threshold={BULK_CONFIRM_THRESHOLD}
                 />
                 <ExportButton batchId={batch.id} count={confirmedCount} />
+                {/* Whole-batch archive — CSV + source photos as one .zip.
+                    On-demand only. A plain download link (no client JS):
+                    the route sets the filename via Content-Disposition. */}
+                {(uploads.length > 0 || confirmedCount > 0) && (
+                  <a
+                    href={`/api/batches/${batch.id}/archive`}
+                    download
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                    title={`ZIP: the ${confirmedCount}-book CSV plus ${uploads.length} source photo${uploads.length === 1 ? "" : "s"}`}
+                  >
+                    <Package className="size-4" />
+                    Download whole batch
+                  </a>
+                )}
               </div>
             )}
 

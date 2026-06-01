@@ -103,8 +103,8 @@ export default function BatchPhotos({ uploads }: Props) {
           Photos
         </h2>
         <span className="text-muted-foreground text-xs">
-          {uploads.length} {uploads.length === 1 ? "upload" : "uploads"} ·
-          cleared on export
+          {uploads.length} {uploads.length === 1 ? "upload" : "uploads"} · kept
+          until you delete the batch
         </span>
       </div>
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">

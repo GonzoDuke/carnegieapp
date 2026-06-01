@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
-import { buildLibraryThingCsv } from "@/lib/csv";
+import { batchSlug, buildLibraryThingCsv } from "@/lib/csv";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -57,11 +57,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 }
 
 function csvFilename(batchName: string): string {
-  const safe = batchName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
   const stamp = new Date().toISOString().slice(0, 10);
-  return `${safe || "batch"}-${stamp}.csv`;
+  return `${batchSlug(batchName)}-${stamp}.csv`;
 }
