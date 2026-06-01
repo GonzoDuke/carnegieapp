@@ -21,8 +21,14 @@ export default async function HomePage() {
   const userId = await requireUserId();
   const db = getDb();
 
-  const [batches, [{ n: totalPending }], budget, pendingBoardRaw, duplicateGroups] =
-    await Promise.all([
+  const [
+    batches,
+    [{ n: totalPending }],
+    budget,
+    pendingBoardRaw,
+    duplicateGroups,
+    [user],
+  ] = await Promise.all([
       db
         .select({
           id: schema.batches.id,
@@ -153,7 +159,14 @@ export default async function HomePage() {
           sql`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10})`,
         )
         .having(sql`COUNT(*) > 1`),
+      db
+        .select({ ignoreDuplicates: schema.users.ignoreDuplicates })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId))
+        .limit(1),
     ]);
+
+  const ignoreDuplicates = user?.ignoreDuplicates ?? false;
 
   const pendingBoard: PendingBook[] = pendingBoardRaw.map((b) => ({
     id: b.id,
@@ -242,7 +255,7 @@ export default async function HomePage() {
           )}
         </section>
 
-        {duplicateGroups.length > 0 && (
+        {duplicateGroups.length > 0 && !ignoreDuplicates && (
           <Link href="/duplicates" className="block">
             <Card className="border-destructive/30 bg-destructive/5 hover:border-destructive/50 transition-colors">
               <CardContent className="flex items-center gap-3 p-4">

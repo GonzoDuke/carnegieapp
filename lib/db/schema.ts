@@ -27,6 +27,12 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   passcodeHash: text("passcode_hash").notNull().unique(),
+  // Account-wide mute for duplicate warnings — when true, the /duplicates
+  // list collapses and the home-page banner is suppressed. A view
+  // preference, not a data change: nothing is deleted, and flipping it
+  // back off resurfaces every group. Lives on the user (not localStorage)
+  // so the choice follows the account across devices.
+  ignoreDuplicates: boolean("ignore_duplicates").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

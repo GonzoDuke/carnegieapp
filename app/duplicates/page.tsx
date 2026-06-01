@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { and, eq, sql } from "drizzle-orm";
-import { Trash2 } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
 import TopBar from "@/components/TopBar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { BookCover } from "@/components/BookCover";
+import DuplicatesList, {
+  type DuplicateBook,
+  type DuplicateGroup,
+} from "@/components/DuplicatesList";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +28,17 @@ export default async function DuplicatesPage() {
   const userId = await requireUserId();
   const db = getDb();
 
-  // Pull every book whose ISBN matches another of THIS user's books (by
-  // canonical ISBN-13 falling back to ISBN-10). Cross-user dupes are
-  // ignored — each user's library is its own duplication scope. Grouping
-  // happens in JS afterward.
-  const rows = (await db
-    .select({
+  const [userRows, rowsRaw] = await Promise.all([
+    db
+      .select({ ignoreDuplicates: schema.users.ignoreDuplicates })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1),
+    // Pull every book whose ISBN matches another of THIS user's books (by
+    // canonical ISBN-13 falling back to ISBN-10). Cross-user dupes are
+    // ignored — each user's library is its own duplication scope. Grouping
+    // happens in JS afterward.
+    db.select({
       id: schema.books.id,
       batchId: schema.books.batchId,
       batchName: schema.batches.name,
@@ -68,17 +72,45 @@ export default async function DuplicatesPage() {
     .orderBy(
       sql`COALESCE(${schema.books.isbn13}, ${schema.books.isbn10})`,
       schema.books.createdAt,
-    )) as DuplicateRow[];
+    ),
+  ]);
 
-  // Group rows by canonical ISBN
-  const groupsMap = new Map<string, DuplicateRow[]>();
+  const ignoreDuplicates = userRows[0]?.ignoreDuplicates ?? false;
+  const rows = rowsRaw as DuplicateRow[];
+
+  // Group rows by canonical ISBN, formatting the added-date here so the
+  // client list never touches toLocaleDateString (hydration-safe) and the
+  // payload stays plain-serializable.
+  const dateFmt = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const groupsMap = new Map<string, DuplicateGroup>();
   for (const row of rows) {
-    const key = row.canonicalIsbn;
-    const list = groupsMap.get(key) ?? [];
-    list.push(row);
-    groupsMap.set(key, list);
+    const book: DuplicateBook = {
+      id: row.id,
+      batchId: row.batchId,
+      batchName: row.batchName,
+      title: row.title,
+      authors: row.authors,
+      isbn13: row.isbn13,
+      isbn10: row.isbn10,
+      coverUrl: row.coverUrl,
+      status: row.status,
+      addedLabel: dateFmt.format(row.createdAt),
+    };
+    const group = groupsMap.get(row.canonicalIsbn);
+    if (group) {
+      group.books.push(book);
+    } else {
+      groupsMap.set(row.canonicalIsbn, {
+        isbn: row.canonicalIsbn,
+        books: [book],
+      });
+    }
   }
-  const groups = Array.from(groupsMap.entries());
+  const groups = Array.from(groupsMap.values());
 
   return (
     <>
@@ -92,120 +124,9 @@ export default async function DuplicatesPage() {
           ← Home
         </Link>
 
-        <header className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            Possible duplicates
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Books that share an ISBN across batches. Vision often captures the
-            same book twice when shelf photos overlap. Delete the copy you
-            don&apos;t want to keep.
-          </p>
-        </header>
-
-        {groups.length === 0 ? (
-          <Card>
-            <CardContent className="text-muted-foreground py-10 text-center text-sm">
-              No duplicates found.
-            </CardContent>
-          </Card>
-        ) : (
-          <ul className="space-y-4">
-            {groups.map(([isbn, books]) => (
-              <li key={isbn}>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="text-muted-foreground mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
-                      <span>ISBN</span>
-                      <code className="bg-muted rounded px-1.5 py-0.5 font-mono normal-case tracking-normal">
-                        {isbn}
-                      </code>
-                      <span>
-                        · {books.length}{" "}
-                        {books.length === 2 ? "copies" : "copies"}
-                      </span>
-                    </div>
-                    <ul className="space-y-2">
-                      {books.map((book) => (
-                        <li
-                          key={book.id}
-                          className="flex items-start gap-3 rounded-md border p-3"
-                        >
-                          <BookCover
-                            coverUrl={book.coverUrl}
-                            isbn13={book.isbn13}
-                            isbn10={book.isbn10}
-                            title={book.title}
-                            size="sm"
-                            className="ring-accent/20 mt-0.5 ring-1"
-                          />
-                          <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate font-medium">{book.title}</p>
-                              <Badge variant={statusBadgeVariant(book.status)}>
-                                {book.status.replace("_", " ")}
-                              </Badge>
-                            </div>
-                            <p className="text-muted-foreground truncate text-xs">
-                              {book.authors.length > 0
-                                ? book.authors.join(" / ")
-                                : "Unknown author"}
-                            </p>
-                            <p className="text-muted-foreground text-xs">
-                              In{" "}
-                              <Link
-                                href={`/batches/${book.batchId}#book-${book.id}`}
-                                className="text-foreground hover:underline"
-                              >
-                                {book.batchName}
-                              </Link>{" "}
-                              · added{" "}
-                              {book.createdAt.toLocaleDateString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              })}
-                            </p>
-                          </div>
-                          <form
-                            method="POST"
-                            action={`/api/batches/${book.batchId}/books/${book.id}`}
-                          >
-                            <input type="hidden" name="_action" value="delete" />
-                            <Button
-                              type="submit"
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Delete this copy"
-                              className="text-muted-foreground hover:text-destructive"
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </form>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
+        <DuplicatesList groups={groups} initialIgnored={ignoreDuplicates} />
       </main>
     </>
   );
-}
-
-function statusBadgeVariant(
-  status: "pending_review" | "confirmed" | "rejected",
-): "default" | "secondary" | "outline" {
-  switch (status) {
-    case "confirmed":
-      return "default";
-    case "rejected":
-      return "outline";
-    default:
-      return "secondary";
-  }
 }
 
