@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Crop as CropIcon, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +25,45 @@ export default function BatchPhotos({ uploads }: Props) {
   const [crop, setCrop] = useState<Crop | undefined>(undefined);
   const [percentCrop, setPercentCrop] = useState<PercentCrop | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+
+  // Inline box labels under each thumbnail. `labels` holds the live input
+  // text; `savedRef` mirrors what's persisted so a blur only PATCHes on an
+  // actual change. These drive the box grouping on the public share view.
+  const [labels, setLabels] = useState<Record<string, string>>(() =>
+    Object.fromEntries(uploads.map((u) => [u.id, u.boxLabel ?? ""])),
+  );
+  const savedRef = useRef<Record<string, string>>(
+    Object.fromEntries(uploads.map((u) => [u.id, u.boxLabel ?? ""])),
+  );
+  // Existing labels become autocomplete suggestions so "Box 1" stays
+  // consistent across a cart's photos without retyping.
+  const boxOptions = Array.from(
+    new Set(
+      uploads
+        .map((u) => u.boxLabel?.trim())
+        .filter((v): v is string => Boolean(v)),
+    ),
+  );
+
+  async function saveBoxLabel(uploadId: string, uploadBatchId: string) {
+    const next = (labels[uploadId] ?? "").trim();
+    if (next === (savedRef.current[uploadId] ?? "")) return;
+    try {
+      const res = await fetch(
+        `/api/batches/${uploadBatchId}/uploads/${uploadId}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ boxLabel: next }),
+        },
+      );
+      if (!res.ok) throw new Error(`Couldn't save the box label (${res.status})`);
+      savedRef.current[uploadId] = next;
+      toast.success(next ? `Labeled "${next}"` : "Box label cleared");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   if (uploads.length === 0) return null;
 
@@ -107,30 +146,56 @@ export default function BatchPhotos({ uploads }: Props) {
           until you delete the batch
         </span>
       </div>
+      <p className="text-muted-foreground text-xs">
+        Tap a photo to view or crop-and-re-read. Label each photo&apos;s box
+        below to group them on your share link.
+      </p>
+      <datalist id="box-label-options">
+        {boxOptions.map((label) => (
+          <option key={label} value={label} />
+        ))}
+      </datalist>
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
         {uploads.map((u, i) => (
-          <button
-            key={u.id}
-            type="button"
-            onClick={() => setOpenIdx(i)}
-            className="group relative aspect-square overflow-hidden rounded-lg border bg-muted transition-shadow hover:shadow-md"
-            title={`Photo ${i + 1} — ${u.detectedCount} detected, ${u.insertedCount} added`}
-          >
-            {/* Pure visual element; using <img> not next/image because
-                Blob URLs are not in the next.config remotePatterns and
-                next/image would 500. Lazy-load to keep the batch page
-                snappy when there are many uploads. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={u.blobUrl}
-              alt={`Shelf photo ${i + 1}`}
-              loading="lazy"
-              className="size-full object-cover transition-transform group-hover:scale-105"
+          <div key={u.id} className="space-y-1">
+            <button
+              type="button"
+              onClick={() => setOpenIdx(i)}
+              className="group bg-muted relative aspect-square w-full overflow-hidden rounded-lg border transition-shadow hover:shadow-md"
+              title={`Photo ${i + 1} — ${u.detectedCount} detected, ${u.insertedCount} added`}
+            >
+              {/* Pure visual element; using <img> not next/image because
+                  Blob URLs are not in the next.config remotePatterns and
+                  next/image would 500. Lazy-load to keep the batch page
+                  snappy when there are many uploads. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={u.blobUrl}
+                alt={`Shelf photo ${i + 1}`}
+                loading="lazy"
+                className="size-full object-cover transition-transform group-hover:scale-105"
+              />
+              <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.7rem] font-medium text-white">
+                {u.insertedCount} book{u.insertedCount === 1 ? "" : "s"}
+              </span>
+            </button>
+            <input
+              type="text"
+              value={labels[u.id] ?? ""}
+              onChange={(e) =>
+                setLabels((prev) => ({ ...prev, [u.id]: e.target.value }))
+              }
+              onBlur={() => saveBoxLabel(u.id, u.batchId)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              list="box-label-options"
+              placeholder="Box…"
+              maxLength={100}
+              aria-label={`Box label for photo ${i + 1}`}
+              className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-7 w-full rounded-md border px-2 text-xs focus-visible:ring-2 focus-visible:outline-none"
             />
-            <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.7rem] font-medium text-white">
-              {u.insertedCount} book{u.insertedCount === 1 ? "" : "s"}
-            </span>
-          </button>
+          </div>
         ))}
       </div>
 

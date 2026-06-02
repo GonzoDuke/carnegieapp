@@ -33,6 +33,13 @@ export const users = pgTable("users", {
   // back off resurfaces every group. Lives on the user (not localStorage)
   // so the choice follows the account across devices.
   ignoreDuplicates: boolean("ignore_duplicates").notNull().default(false),
+  // Public read-only sharing. When non-null, anyone holding this
+  // unguessable token can browse this user's carts at /share/<token>
+  // without logging in (see lib/share.ts + proxy.ts). Regenerating the
+  // token revokes every previously-shared link; setting it null turns
+  // sharing off entirely. sharedAt records when it was last enabled.
+  shareToken: text("share_token").unique(),
+  sharedAt: timestamp("shared_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -135,6 +142,10 @@ export const batchUploads = pgTable(
     blobUrl: text("blob_url").notNull(),
     // Path-within-blob, needed for del() at export time.
     blobPath: text("blob_path").notNull(),
+    // Which physical box this photo shows, within the cart (batch). Free
+    // text the operator sets on the batch page (e.g. "Box 1"). Drives the
+    // box grouping on the public share view; null = "Unlabeled".
+    boxLabel: text("box_label"),
     model: text("model"),
     escalated: boolean("escalated").notNull().default(false),
     detectedCount: integer("detected_count").notNull().default(0),

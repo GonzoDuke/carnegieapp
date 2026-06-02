@@ -10,6 +10,11 @@ export const REQUEST_ID_HEADER = "x-request-id";
 // and "Add to Home Screen" silently fails.
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/login" || pathname === "/api/login") return true;
+  // Public read-only catalog. /share/<token> resolves the bearer token to
+  // an owner inside the page itself (lib/share.ts) — no session, no DB
+  // lookup here. Only these read-only pages are exposed; every /api/*
+  // mutation route stays behind the session check below.
+  if (pathname.startsWith("/share/")) return true;
   if (pathname === "/manifest.webmanifest") return true;
   if (pathname === "/apple-icon") return true;
   if (pathname.startsWith("/icon")) return true;
