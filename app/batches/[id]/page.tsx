@@ -18,6 +18,7 @@ import BarcodeScanner from "@/components/BarcodeScanner";
 import PhotoCapture from "@/components/PhotoCapture";
 import BatchActionsMenu from "@/components/BatchActionsMenu";
 import BulkConfirmButton from "@/components/BulkConfirmButton";
+import BulkIsbnForm from "@/components/BulkIsbnForm";
 import ExportButton from "@/components/ExportButton";
 import TopBar from "@/components/TopBar";
 import BooksList from "@/components/BooksList";
@@ -366,6 +367,7 @@ export default async function BatchDetailPage({
                       name="isbn"
                       placeholder="ISBN-10 or ISBN-13 (hyphens OK)"
                       maxLength={20}
+                      inputMode="numeric"
                     />
                   </div>
                   <div className="grid gap-2">
@@ -436,6 +438,9 @@ export default async function BatchDetailPage({
                     Add book
                   </Button>
                 </form>
+                <div className="mt-4">
+                  <BulkIsbnForm batchId={batch.id} />
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>

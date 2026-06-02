@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { BookCover } from "@/components/BookCover";
 
@@ -436,13 +437,24 @@ export default function BooksList({ batchId, books }: Props) {
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="grid gap-2">
                           <Label htmlFor={`title-${book.id}`}>Title</Label>
-                          <Input
+                          {/* Textarea, not Input: a long title overflows a
+                              single-line field on a phone, hiding the end of
+                              the text where typos often hide. The textarea
+                              wraps and auto-grows (field-sizing-content) so the
+                              whole title stays visible and editable. Enter is
+                              suppressed to keep single-line title semantics —
+                              the wrapping is purely for display. */}
+                          <Textarea
                             id={`title-${book.id}`}
-                            type="text"
                             name="title"
                             defaultValue={book.title}
                             required
                             maxLength={1000}
+                            rows={2}
+                            className="min-h-8 resize-y"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") e.preventDefault();
+                            }}
                           />
                         </div>
                         <div className="grid gap-2">
@@ -466,6 +478,7 @@ export default function BooksList({ batchId, books }: Props) {
                           defaultValue={book.isbn13 ?? book.isbn10 ?? ""}
                           placeholder="ISBN-10 or ISBN-13 (hyphens OK)"
                           maxLength={20}
+                          inputMode="numeric"
                         />
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">

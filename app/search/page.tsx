@@ -31,6 +31,7 @@ const SOURCE_OPTIONS = [
 
 const SORT_OPTIONS = [
   { value: "recent", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
   { value: "title", label: "Title" },
   { value: "author", label: "Author" },
   { value: "confidence", label: "Confidence" },
@@ -121,6 +122,9 @@ export default async function SearchPage({
   // barcode books) get sorted last via COALESCE; vision rows surface first.
   const orderBy: SQL[] = (() => {
     switch (sort) {
+      case "oldest":
+        // Order added: first cataloged surfaces first.
+        return [asc(schema.books.createdAt)];
       case "title":
         return [asc(schema.books.title)];
       case "author":
