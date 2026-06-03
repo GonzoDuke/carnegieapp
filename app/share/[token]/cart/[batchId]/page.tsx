@@ -5,7 +5,7 @@ import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { resolveShareToken } from "@/lib/share";
-import ShareBookList from "@/components/share/ShareBookList";
+import ShareBooksPanel from "@/components/share/ShareBooksPanel";
 import ShareGallery from "@/components/share/ShareGallery";
 
 export const dynamic = "force-dynamic";
@@ -128,15 +128,7 @@ export default async function ShareCartPage({
         )}
       </header>
 
-      <section className="space-y-3">
-        <h2 className="font-heading text-xl font-semibold tracking-tight">
-          Books
-          <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-            ({books.length})
-          </span>
-        </h2>
-        <ShareBookList books={books} />
-      </section>
+      <ShareBooksPanel books={books} />
 
       <ShareGallery photos={uploads} />
     </main>
