@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { ArrowLeft, Check, Library } from "lucide-react";
+import { ArrowLeft, Check, FileSpreadsheet, Library } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
 import TopBar from "@/components/TopBar";
 import { BookCover } from "@/components/BookCover";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
@@ -104,6 +105,19 @@ export default async function ArchivePage() {
               </span>{" "}
               {totalBooks === 1 ? "book" : "books"} cataloged across this archive.
             </p>
+          )}
+          {batches.length > 0 && (
+            <div className="pt-1">
+              {/* Plain anchor → the master CSV streams as a download. One sheet
+                  merging every archived cart, with a Cart column up front. */}
+              <a
+                href="/api/export/master.csv"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                <FileSpreadsheet className="size-4" />
+                Download master list (CSV)
+              </a>
+            </div>
           )}
         </header>
 
