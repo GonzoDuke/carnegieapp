@@ -28,7 +28,10 @@ export default async function ArchivePage() {
       location: schema.batches.location,
       createdAt: schema.batches.createdAt,
       exportedAt: schema.batches.exportedAt,
-      bookCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id)`,
+      // Exclude rejected (trashed) books so the count reflects the real
+      // catalog — matching the public share view and the LibraryThing export.
+      // Counting all rows here over-stated batches with trashed books.
+      bookCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id AND books.status <> 'rejected')`,
       sampleBooks: sql<
         Array<{
           coverUrl: string | null;

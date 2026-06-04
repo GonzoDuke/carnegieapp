@@ -43,7 +43,11 @@ export default async function HomePage() {
           // and the predicate becomes a tautology that returns 0 for every
           // row. Hand-qualifying as `batches.id` / `books.batch_id` makes
           // the correlation actually correlate.
-          bookCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id)`,
+          // Exclude rejected (trashed) books: the count, the progress %, and
+          // the ready-to-export check (confirmedCount === bookCount) all read
+          // off this, so counting trashed rows both over-stated the total and
+          // made a fully-confirmed cart with any trashed book never reach 100%.
+          bookCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id AND books.status <> 'rejected')`,
           confirmedCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id AND books.status = 'confirmed')`,
           pendingCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id AND books.status = 'pending_review')`,
           // Last book added (or batch created if empty) — drives the "where
