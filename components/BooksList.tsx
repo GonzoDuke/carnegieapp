@@ -31,6 +31,17 @@ type Props = {
   books: Book[];
 };
 
+// What the per-book route answers with. Every action returns `ok` plus the
+// action name; relookup adds its outcome so the caller can word the toast.
+type BookActionResult = {
+  ok?: boolean;
+  error?: string;
+  action?: string;
+  outcome?: "hit" | "miss";
+  source?: string | null;
+  fieldsFilled?: string[];
+};
+
 const EXPAND_PREF_KEY = "carnegie:books-expanded";
 const HIDE_CONFIRMED_PREF_KEY = "carnegie:books-hide-confirmed";
 
@@ -88,6 +99,7 @@ export default function BooksList({ batchId, books }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [rowBusy, setRowBusy] = useState<Set<string>>(new Set());
   // expand-all preference is derived directly from localStorage via
   // useSyncExternalStore — no effect needed for the read, no
   // setState-in-effect lint pain. "1" = expanded, "0" = collapsed,
@@ -206,6 +218,98 @@ export default function BooksList({ batchId, books }: Props) {
     }
   }
 
+  // Per-row mutations. Same shape as bulkAction above — fetch, check res.ok,
+  // toast, router.refresh() — but keyed per book so two rows can't collide
+  // and only the acting row shows a pending state.
+  //
+  // These replaced five native <form> POSTs. Those submitted without
+  // JavaScript, but every one reloaded the page and re-rendered the entire
+  // batch — all books and all uploads, unpaginated — to change one row.
+  async function bookAction(
+    bookId: string,
+    fields: Record<string, string>,
+    messages: {
+      pending?: string;
+      success: string | ((json: BookActionResult) => string);
+    },
+  ): Promise<BookActionResult | null> {
+    if (rowBusy.has(bookId)) return null;
+    setRowBusy((prev) => new Set(prev).add(bookId));
+    const toastId = messages.pending ? toast.loading(messages.pending) : undefined;
+    try {
+      const body = new FormData();
+      for (const [key, value] of Object.entries(fields)) body.append(key, value);
+
+      const res = await fetch(`/api/batches/${batchId}/books/${bookId}`, {
+        method: "POST",
+        body,
+      });
+      const json: BookActionResult | null = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error || `Failed (${res.status})`);
+      }
+      const text =
+        typeof messages.success === "function"
+          ? messages.success(json ?? {})
+          : messages.success;
+      toast.success(text, { id: toastId });
+      router.refresh();
+      return json;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (toastId) toast.error(message, { id: toastId });
+      else toast.error(message);
+      return null;
+    } finally {
+      setRowBusy((prev) => {
+        const next = new Set(prev);
+        next.delete(bookId);
+        return next;
+      });
+    }
+  }
+
+  // The edit form keeps its <form> element — it's the right semantics for a
+  // set of labelled fields, and it gives us Enter-to-submit for free. Only
+  // the submission is intercepted.
+  async function onEditSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submitter = (event.nativeEvent as SubmitEvent)
+      .submitter as HTMLButtonElement | null;
+
+    // Passing the submitter is load-bearing: it's what carries the clicked
+    // button's own name/value (_action=relookup, status=confirmed). Without
+    // it every button would submit an identical plain save.
+    const data = new FormData(form, submitter ?? undefined);
+    const fields: Record<string, string> = {};
+    for (const [key, value] of data.entries()) {
+      if (typeof value === "string") fields[key] = value;
+    }
+    // Duplicate keys collapse to the last value, which matches how the route
+    // resolves a hidden _action against the clicked button's _action.
+    const bookId = form.dataset.bookId!;
+
+    if (fields._action === "relookup") {
+      await bookAction(bookId, fields, {
+        pending: "Re-running lookup chain…",
+        success: (json) =>
+          json.outcome === "hit"
+            ? `Lookup refreshed${json.source ? ` from ${json.source}` : ""}${
+                json.fieldsFilled?.length
+                  ? ` · filled ${json.fieldsFilled.length} field${json.fieldsFilled.length === 1 ? "" : "s"}`
+                  : " · nothing new to fill"
+              }`
+            : "No match found. Your edits were saved.",
+      });
+      return;
+    }
+
+    await bookAction(bookId, fields, {
+      success: fields.status === "confirmed" ? "Confirmed" : "Saved",
+    });
+  }
+
   return (
     <>
       <div className="mb-3 space-y-2">
@@ -296,6 +400,7 @@ export default function BooksList({ batchId, books }: Props) {
         {visibleBooks.map((book) => {
           const dot = confidenceDot(book.source, book.confidence);
           const isChecked = selected.has(book.id);
+          const isBusy = rowBusy.has(book.id);
           return (
             <li
               key={book.id}
@@ -307,7 +412,7 @@ export default function BooksList({ batchId, books }: Props) {
                   isChecked
                     ? "border-primary/60 bg-primary/5 shadow-sm"
                     : "hover:border-primary/30 hover:shadow-sm"
-                }`}
+                } ${isBusy ? "opacity-60" : ""}`}
               >
                 <div className="flex items-start gap-3 p-3 sm:p-4">
                   <label className="mt-0.5 flex shrink-0 cursor-pointer items-center">
@@ -372,25 +477,25 @@ export default function BooksList({ batchId, books }: Props) {
                           Tags
                         </span>
                         {book.tags.map((tag) => (
-                          <form
+                          <button
                             key={tag}
-                            method="POST"
-                            action={`/api/batches/${batchId}/books/${book.id}`}
-                            className="inline-flex"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() =>
+                              bookAction(
+                                book.id,
+                                { _action: "remove-tag", tag },
+                                { success: `Removed tag "${tag}"` },
+                              )
+                            }
+                            title={`Remove tag "${tag}"`}
+                            className="bg-secondary text-secondary-foreground hover:bg-destructive/10 hover:text-destructive group inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
                           >
-                            <input type="hidden" name="_action" value="remove-tag" />
-                            <input type="hidden" name="tag" value={tag} />
-                            <button
-                              type="submit"
-                              title={`Remove tag "${tag}"`}
-                              className="bg-secondary text-secondary-foreground hover:bg-destructive/10 hover:text-destructive group inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors"
-                            >
-                              <span>{tag}</span>
-                              <span className="text-muted-foreground group-hover:text-destructive">
-                                ×
-                              </span>
-                            </button>
-                          </form>
+                            <span>{tag}</span>
+                            <span className="text-muted-foreground group-hover:text-destructive">
+                              ×
+                            </span>
+                          </button>
                         ))}
                       </div>
                     )}
@@ -401,34 +506,15 @@ export default function BooksList({ batchId, books }: Props) {
                       </blockquote>
                     )}
 
+                    {/* Still a <form>: correct semantics for a set of
+                        labelled fields, and Enter-to-submit for free. Only
+                        the submission is intercepted — see onEditSubmit,
+                        which reads the clicked button out of the event so
+                        Save / Re-lookup / Confirm stay distinguishable. */}
                     <form
-                      method="POST"
-                      action={`/api/batches/${batchId}/books/${book.id}`}
+                      data-book-id={book.id}
+                      onSubmit={onEditSubmit}
                       className="bg-muted/30 mt-3 space-y-3 rounded-md p-3"
-                      onSubmit={(e) => {
-                        // Native form-submit, server returns 303 redirect.
-                        // We can't show a post-action toast (the page
-                        // reloads, killing client state) — but we CAN show
-                        // a loading toast that bridges the dead-zone while
-                        // the lookup chain runs (5–25s in the worst case).
-                        // The post-redirect Alert at the top of the batch
-                        // page tells the user whether it hit or missed.
-                        //
-                        // Do NOT disable the submit button here — disabling
-                        // it synchronously inside onSubmit cancels the form
-                        // submission in some browsers (the button is
-                        // "disabled" by the time the browser starts the
-                        // POST, so the POST never fires). Toast alone is
-                        // the visible feedback.
-                        const submitter = (e.nativeEvent as SubmitEvent)
-                          .submitter as HTMLButtonElement | null;
-                        if (submitter?.value === "relookup") {
-                          toast.loading("Re-running lookup chain…", {
-                            id: `relookup-${book.id}`,
-                            description: "Up to ~20 seconds.",
-                          });
-                        }
-                      }}
                     >
                       <input type="hidden" name="_action" value="save" />
                       <div className="grid gap-3 sm:grid-cols-2">
@@ -534,7 +620,12 @@ export default function BooksList({ batchId, books }: Props) {
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 pt-2">
-                        <Button type="submit" variant="outline" size="sm">
+                        <Button
+                          type="submit"
+                          variant="outline"
+                          size="sm"
+                          disabled={isBusy}
+                        >
                           Save edits
                         </Button>
                         <Button
@@ -543,6 +634,7 @@ export default function BooksList({ batchId, books }: Props) {
                           size="sm"
                           name="_action"
                           value="relookup"
+                          disabled={isBusy}
                           title="Save edits and rerun the lookup chain"
                         >
                           <Sparkles className="size-3.5" />
@@ -553,6 +645,7 @@ export default function BooksList({ batchId, books }: Props) {
                           size="sm"
                           name="status"
                           value="confirmed"
+                          disabled={isBusy}
                         >
                           Confirm
                         </Button>
@@ -564,64 +657,64 @@ export default function BooksList({ batchId, books }: Props) {
                     {/* Inline confirm — only when not already confirmed.
                         Sits with the delete button to mirror the pattern. */}
                     {book.status !== "confirmed" && (
-                      <form
-                        method="POST"
-                        action={`/api/batches/${batchId}/books/${book.id}`}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={isBusy}
+                        onClick={() =>
+                          bookAction(
+                            book.id,
+                            { _action: "save", status: "confirmed" },
+                            { success: "Confirmed" },
+                          )
+                        }
+                        title="Confirm this book"
+                        className="text-muted-foreground hover:bg-primary/10 hover:text-primary"
                       >
-                        <input type="hidden" name="_action" value="save" />
-                        <input type="hidden" name="status" value="confirmed" />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="icon-sm"
-                          title="Confirm this book"
-                          className="text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                        >
-                          <Check className="size-4" />
-                        </Button>
-                      </form>
+                        <Check className="size-4" />
+                      </Button>
                     )}
                     {/* Un-confirm — mirrors the inline confirm but only
                         appears on already-confirmed rows. Flips status
                         back to pending_review so the row re-enters the
                         review queue. */}
                     {book.status === "confirmed" && (
-                      <form
-                        method="POST"
-                        action={`/api/batches/${batchId}/books/${book.id}`}
-                      >
-                        <input type="hidden" name="_action" value="save" />
-                        <input
-                          type="hidden"
-                          name="status"
-                          value="pending_review"
-                        />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="icon-sm"
-                          title="Back to pending review"
-                          className="text-muted-foreground hover:bg-muted hover:text-foreground"
-                        >
-                          <Undo2 className="size-4" />
-                        </Button>
-                      </form>
-                    )}
-                    <form
-                      method="POST"
-                      action={`/api/batches/${batchId}/books/${book.id}`}
-                    >
-                      <input type="hidden" name="_action" value="delete" />
                       <Button
-                        type="submit"
+                        type="button"
                         variant="ghost"
                         size="icon-sm"
-                        title="Delete this book"
-                        className="text-muted-foreground hover:text-destructive"
+                        disabled={isBusy}
+                        onClick={() =>
+                          bookAction(
+                            book.id,
+                            { _action: "save", status: "pending_review" },
+                            { success: "Back to pending review" },
+                          )
+                        }
+                        title="Back to pending review"
+                        className="text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
-                        <Trash2 className="size-4" />
+                        <Undo2 className="size-4" />
                       </Button>
-                    </form>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={isBusy}
+                      onClick={() =>
+                        bookAction(
+                          book.id,
+                          { _action: "delete" },
+                          { success: `Moved "${book.title}" to Trash` },
+                        )
+                      }
+                      title="Delete this book"
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   </div>
                 </div>
               </Card>

@@ -39,6 +39,21 @@ const ActionSchema = z.object({
   tag: z.string().trim().max(100).optional(),
 });
 
+// Every action returns JSON — `{ ok: true, action, … }` on success, or
+// `{ error }` with a 4xx. It used to answer with a 303 redirect back to the
+// batch page so the forms in BooksList worked without JavaScript, but that
+// meant a full page reload and re-render of the entire batch (every book,
+// every upload, unpaginated) for each single-row confirm. Carnegie is an
+// installed PWA driven by a camera and a barcode scanner; nothing about it
+// works with JavaScript off, so the no-JS fallback was paying a real cost
+// for a guarantee that was never true in practice.
+//
+// Body is still FormData rather than JSON — the callers build it from the
+// edit form's fields, and switching that too would be churn for no gain.
+//
+// ALL callers must handle JSON: BooksList, DuplicatesList, TrashList and
+// PendingReviewPanel. A native <form> posting here now renders raw JSON at
+// the API URL instead of navigating back.
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const userId = await requireUserId();
   const { id, bookId } = await params;
@@ -102,12 +117,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       action: "reject",
       outcome: "ok",
     });
-    // Anchor back to the row so the browser keeps your place. The rejected
-    // book leaves the active list, so the anchor lands where it used to be
-    // — which is where the next book you want is anyway.
-    const redirectUrl = new URL(`/batches/${id}`, request.url);
-    redirectUrl.hash = `book-${bookId}`;
-    return NextResponse.redirect(redirectUrl, { status: 303 });
+    return NextResponse.json({ ok: true, action: "reject", bookId });
   }
 
   // Permanent delete — hard DB removal, only reachable from the
@@ -129,11 +139,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       action: "permanent-delete",
       outcome: "ok",
     });
-    // The row is genuinely gone, so there's no book to anchor to — go back
-    // to the Trash section the user was working in.
-    const redirectUrl = new URL(`/batches/${id}`, request.url);
-    redirectUrl.hash = "trash";
-    return NextResponse.redirect(redirectUrl, { status: 303 });
+    return NextResponse.json({ ok: true, action: "permanent-delete", bookId });
   }
 
   // Restore — flip a rejected row back to pending_review.
@@ -154,9 +160,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       action: "restore",
       outcome: "ok",
     });
-    const redirectUrl = new URL(`/batches/${id}`, request.url);
-    redirectUrl.hash = `book-${bookId}`;
-    return NextResponse.redirect(redirectUrl, { status: 303 });
+    return NextResponse.json({ ok: true, action: "restore", bookId });
   }
 
   if (action === "remove-tag") {
@@ -177,9 +181,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       .update(schema.books)
       .set({ tags: filtered })
       .where(ownerScope);
-    const redirectUrl = new URL(`/batches/${id}`, request.url);
-    redirectUrl.hash = `book-${bookId}`;
-    return NextResponse.redirect(redirectUrl, { status: 303 });
+    return NextResponse.json({ ok: true, action: "remove-tag", bookId, tag });
   }
 
   // Build updates from user-typed fields. Used by both save and relookup;
@@ -225,18 +227,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       action: "save",
       outcome: "ok",
     });
-    // Confirm, un-confirm and Save edits all land here, and they're the
-    // actions you perform dozens of times per batch. Without this anchor
-    // each one bounced you to the top of the page — so confirming book 40
-    // of 60 meant scrolling back past 39 rows, every time. The rarer
-    // actions (restore, remove-tag, re-lookup) already did this.
-    //
-    // Edge case, accepted: with "hide confirmed" on, confirming removes the
-    // row, the anchor target disappears and the browser stays put. Still
-    // strictly better than jumping to the top.
-    const redirectUrl = new URL(`/batches/${id}`, request.url);
-    redirectUrl.hash = `book-${bookId}`;
-    return NextResponse.redirect(redirectUrl, { status: 303 });
+    return NextResponse.json({ ok: true, action: "save", book });
   }
 
   // Relookup: try ISBN first, then title+author. The current `book` already
@@ -268,8 +259,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  const redirectUrl = new URL(`/batches/${id}`, request.url);
-
   if (!result) {
     log("book.action", {
       request_id: requestId,
@@ -280,9 +269,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       outcome: "miss",
       used_title_search: usedTitleSearch,
     });
-    redirectUrl.searchParams.set("relookup", "miss");
-    redirectUrl.hash = `book-${book.id}`;
-    return NextResponse.redirect(redirectUrl, { status: 303 });
+    return NextResponse.json({
+      ok: true,
+      action: "relookup",
+      outcome: "miss",
+      bookId,
+    });
   }
 
   // Conservative gap-fill: when the user has typed a value, keep it. The
@@ -327,10 +319,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     fields_filled: Object.keys(lookupUpdates),
   });
 
-  redirectUrl.searchParams.set("relookup", "hit");
-  if (resultSource) redirectUrl.searchParams.set("source", resultSource);
-  redirectUrl.hash = `book-${book.id}`;
-  return NextResponse.redirect(redirectUrl, { status: 303 });
+  return NextResponse.json({
+    ok: true,
+    action: "relookup",
+    outcome: "hit",
+    bookId,
+    source: resultSource,
+    fieldsFilled: Object.keys(lookupUpdates),
+  });
 }
 
 // Stub titles emitted by the manual-add route when a lookup misses but the

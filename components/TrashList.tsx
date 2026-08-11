@@ -34,15 +34,13 @@ export default function TrashList({ batchId, books }: Props) {
     try {
       const form = new FormData();
       form.append("_action", action);
-      const res = await fetch(
-        `/api/batches/${batchId}/books/${book.id}`,
-        { method: "POST", body: form, redirect: "manual" },
-      );
-      // Same redirect handling as PendingReviewPanel — route returns
-      // 303; fetch's manual redirect gives an opaqueredirect we treat
-      // as success.
-      if (!res.ok && res.type !== "opaqueredirect" && res.status !== 0) {
-        throw new Error(`Failed (${res.status})`);
+      const res = await fetch(`/api/batches/${batchId}/books/${book.id}`, {
+        method: "POST",
+        body: form,
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error || `Failed (${res.status})`);
       }
       toast.success(
         action === "restore"

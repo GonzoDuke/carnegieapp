@@ -64,15 +64,13 @@ export default function PendingReviewPanel({ books }: Props) {
       const form = new FormData();
       form.append("_action", action === "delete" ? "delete" : "save");
       if (action === "confirm") form.append("status", "confirmed");
-      const res = await fetch(
-        `/api/batches/${book.batchId}/books/${book.id}`,
-        { method: "POST", body: form, redirect: "manual" },
-      );
-      // The route returns a 303 redirect to /batches/[id]; treat any non-error
-      // response as success. fetch with redirect:"manual" gives an opaque
-      // response (status 0 / type opaqueredirect), which counts as ok here.
-      if (!res.ok && res.type !== "opaqueredirect" && res.status !== 0) {
-        throw new Error(`Failed (${res.status})`);
+      const res = await fetch(`/api/batches/${book.batchId}/books/${book.id}`, {
+        method: "POST",
+        body: form,
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error || `Failed (${res.status})`);
       }
       toast.success(
         action === "confirm" ? `Confirmed: ${book.title}` : `Deleted: ${book.title}`,

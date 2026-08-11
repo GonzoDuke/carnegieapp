@@ -67,8 +67,17 @@ test("login → create batch → quick-add ISBN → export CSV", async ({
   //
   // The book is still pending_review at this point, so confirm it first —
   // only confirmed books are exported.
+  //
+  // Confirming must NOT navigate. It used to be a native form POST that
+  // 303'd back to this page, reloading every book and every upload to change
+  // one row. It's a fetch + router.refresh() now, so the URL is unchanged and
+  // your scroll position survives. Capturing the URL either side is what
+  // stops that regressing back to a full page load.
+  const urlBeforeConfirm = page.url();
   await page.getByRole("button", { name: /confirm this book/i }).click();
-  await expect(page).toHaveURL(new RegExp(`/batches/${batchId}`));
+  await expect(page.getByText(/^Confirmed$/)).toBeVisible();
+  expect(page.url()).toBe(urlBeforeConfirm);
+  await expect(page.getByRole("button", { name: /back to pending review/i })).toBeVisible();
 
   const exportLink = page.getByRole("link", { name: /download csv \(1\)/i });
   await expect(exportLink).toBeVisible();

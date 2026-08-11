@@ -43,6 +43,36 @@ export default function DuplicatesList({
   // second click while the request is in flight.
   const [ignored, setIgnored] = useState(initialIgnored);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState<Set<string>>(new Set());
+
+  // Moves one copy of a duplicate pair to Trash. This was a native <form>
+  // POST that relied on the per-book route's 303 back to the batch page —
+  // which also meant leaving /duplicates entirely to delete a row from it.
+  // The route answers with JSON now, so this fetches and refreshes in place
+  // and you stay in the list you're working through.
+  async function deleteCopy(book: DuplicateBook) {
+    if (deleting.has(book.id)) return;
+    setDeleting((prev) => new Set(prev).add(book.id));
+    try {
+      const body = new FormData();
+      body.append("_action", "delete");
+      const res = await fetch(
+        `/api/batches/${book.batchId}/books/${book.id}`,
+        { method: "POST", body },
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || `Failed (${res.status})`);
+      toast.success(`Moved "${book.title}" to Trash in ${book.batchName}`);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+      setDeleting((prev) => {
+        const next = new Set(prev);
+        next.delete(book.id);
+        return next;
+      });
+    }
+  }
   const copies = groups.reduce((n, g) => n + g.books.length, 0);
 
   async function setIgnore(next: boolean) {
@@ -187,21 +217,17 @@ export default function DuplicatesList({
                             · added {book.addedLabel}
                           </p>
                         </div>
-                        <form
-                          method="POST"
-                          action={`/api/batches/${book.batchId}/books/${book.id}`}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={deleting.has(book.id)}
+                          onClick={() => deleteCopy(book)}
+                          title="Delete this copy"
+                          className="text-muted-foreground hover:text-destructive"
                         >
-                          <input type="hidden" name="_action" value="delete" />
-                          <Button
-                            type="submit"
-                            variant="ghost"
-                            size="icon-sm"
-                            title="Delete this copy"
-                            className="text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </form>
+                          <Trash2 className="size-4" />
+                        </Button>
                       </li>
                     ))}
                   </ul>

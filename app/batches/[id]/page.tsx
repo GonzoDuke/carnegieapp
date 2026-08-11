@@ -40,7 +40,6 @@ export const dynamic = "force-dynamic";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<{
-  relookup?: string;
   manual?: string;
   source?: string;
 }>;
@@ -54,7 +53,7 @@ export default async function BatchDetailPage({
 }) {
   const userId = await requireUserId();
   const { id } = await params;
-  const { relookup, manual, source } = await searchParams;
+  const { manual, source } = await searchParams;
 
   const db = getDb();
   // Filter by both id and ownerId so a batch belonging to another user
@@ -140,21 +139,18 @@ export default async function BatchDetailPage({
           All batches
         </Link>
 
-        {(relookup === "hit" || manual === "hit") && (
+        {/* Manual-add outcome. Re-lookup used to report itself here too, but
+            it's a per-row action and now answers with JSON, so its result is
+            a toast next to the row you acted on rather than a banner at the
+            top of a page you may have scrolled far down. Manual add still
+            redirects (it's a plain form on this page), so it keeps the
+            banner. */}
+        {manual === "hit" && (
           <Alert className="border-primary/40 bg-primary/5">
             <Sparkles className="size-4" />
             <AlertDescription>
-              {relookup === "hit" ? "Lookup refreshed" : "Book added"}
-              {source ? ` from ${source}` : ""}. Title, author, publisher, and
-              cover filled in automatically.
-            </AlertDescription>
-          </Alert>
-        )}
-        {relookup === "miss" && (
-          <Alert>
-            <AlertDescription>
-              Re-lookup didn&apos;t find a match. Your edits were saved but no
-              additional fields could be filled in.
+              Book added{source ? ` from ${source}` : ""}. Title, author,
+              publisher, and cover filled in automatically.
             </AlertDescription>
           </Alert>
         )}
