@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { ArrowLeft, Check, FileSpreadsheet, Library } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  Download,
+  FileSpreadsheet,
+  Library,
+} from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
 import TopBar from "@/components/TopBar";
@@ -75,6 +81,23 @@ export default async function ArchivePage() {
 
   const totalBooks = batches.reduce((sum, b) => sum + b.bookCount, 0);
 
+  // Counted separately from the archived batches above, because the
+  // worksheet covers the whole collection — in-flight batches included —
+  // while this page otherwise only lists completed ones. Gating the
+  // worksheet button on `batches.length` would hide it from someone whose
+  // batches are all still open, which is exactly who wants it.
+  const [{ n: collectionSize }] = await db
+    .select({ n: sql<number>`COUNT(*)::int` })
+    .from(schema.books)
+    .innerJoin(schema.batches, eq(schema.books.batchId, schema.batches.id))
+    .where(
+      and(
+        eq(schema.books.ownerId, userId),
+        sql`${schema.books.status} <> 'rejected'`,
+        sql`${schema.batches.deletedAt} IS NULL`,
+      ),
+    );
+
   return (
     <>
       <TopBar />
@@ -107,17 +130,36 @@ export default async function ArchivePage() {
               {totalBooks === 1 ? "book" : "books"} cataloged across this archive.
             </p>
           )}
-          {batches.length > 0 && (
+          {(collectionSize > 0 || batches.length > 0) && (
             <div className="pt-1">
-              {/* Plain anchor → the master CSV streams as a download. One sheet
-                  merging every archived batch, with a Batch column up front. */}
-              <a
-                href="/api/export/master.csv"
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                <FileSpreadsheet className="size-4" />
-                Download master list (CSV)
-              </a>
+              {/* Two different jobs, so two buttons. The worksheet is the
+                  whole collection — in-flight batches and pending books
+                  included — laid out to be worked in, with a Decision
+                  dropdown. The CSV is the LibraryThing import format, and
+                  only covers batches you've marked complete. */}
+              <div className="flex flex-wrap items-center gap-2">
+                {collectionSize > 0 && (
+                  <a
+                    href="/api/export/worksheet.xlsx"
+                    download
+                    className={buttonVariants({ size: "sm" })}
+                    title={`Excel worksheet: all ${collectionSize} books, with a Decision column`}
+                  >
+                    <FileSpreadsheet className="size-4" />
+                    Download worksheet ({collectionSize.toLocaleString()})
+                  </a>
+                )}
+                {batches.length > 0 && (
+                  <a
+                    href="/api/export/master.csv"
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                    title="LibraryThing import format, completed batches only"
+                  >
+                    <Download className="size-4" />
+                    Master list (CSV)
+                  </a>
+                )}
+              </div>
             </div>
           )}
         </header>

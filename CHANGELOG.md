@@ -3,6 +3,54 @@
 Carnegie — a personal-library cataloger. Photograph shelves, scan
 barcodes, type ISBNs; export LibraryThing-compatible CSV.
 
+## 1.3.0 — 2026-08-11
+
+### Added
+
+- **Excel worksheet export**, alongside the LibraryThing CSV. The CSV is a
+  machine format — LibraryThing's column names, an importer's column order,
+  and location, blurb and notes crammed into one Comments cell separated by
+  newlines, which is what makes rows unreadable in Excel.
+
+  The worksheet is the other thing: a sheet to sit and work in. Reading
+  order (Batch · Box · Location · Call number · Title · Author · …), one
+  fact per column, a frozen header, AutoFilter, sensible column widths, and
+  empty **Decision · Note · Who · When** columns with a **Keep / Discard /
+  Undecided** dropdown so three people spell "Discard" the same way.
+
+  Per batch from the batch page; whole collection from the Archive. Unlike
+  the CSV it includes books still pending review — a book you haven't got to
+  yet is still a book on the shelf — and batches you haven't marked
+  complete. Trashed books stay out. A second "About" sheet records what was
+  exported and when.
+
+  The Box column is empty for books catalogued before `books.upload_id`
+  existed; nothing recorded which book came from which photo.
+
+### Review loop
+
+- **Confirming a book no longer reloads the page.** Every per-book action
+  was a native form POST answered with a 303, which re-rendered the whole
+  batch and bounced you to the top. Now fetch + refresh: scroll position,
+  open rows and your expand/hide preferences all survive. Measured holding
+  at 8125px across an un-confirm/re-confirm on a 102-book batch.
+- Re-lookup reports in a toast beside the row instead of a banner at the top
+  of a page you'd scrolled well past.
+- Deleting a duplicate from `/duplicates` no longer navigates you out of the
+  list you're working through.
+- The no-JS form fallback is deliberately dropped. Carnegie is an installed
+  PWA driven by a camera; the guarantee was costing a page reload per action
+  for something never true in practice.
+
+### UI
+
+- **Phones can search.** The search bar is desktop-only and nothing below
+  that breakpoint linked to `/search` — on the device you hold at a shelf,
+  the library wasn't searchable at all.
+- The Photo/Scan/Manual panel collapses once a batch has books. You're
+  reviewing at that point, not capturing, and it sat between you and the
+  list on every visit.
+
 ## 1.2.0 — 2026-08-11
 
 Carnegie is now scoped as an **intake tool** and nothing more. Browsing a

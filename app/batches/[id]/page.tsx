@@ -8,6 +8,7 @@ import {
   Camera,
   Check,
   ChevronRight,
+  FileSpreadsheet,
   Package,
   Pencil,
   ScanBarcode,
@@ -229,6 +230,20 @@ export default async function BatchDetailPage({
                   threshold={BULK_CONFIRM_THRESHOLD}
                 />
                 <ExportButton batchId={batch.id} count={confirmedCount} />
+                {/* The working spreadsheet, as opposed to the LibraryThing
+                    CSV. Includes pending books, has a Decision dropdown,
+                    and is laid out to be read rather than imported. */}
+                {activeBooks.length > 0 && (
+                  <a
+                    href={`/api/batches/${batch.id}/worksheet.xlsx`}
+                    download
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                    title={`Excel worksheet: all ${activeBooks.length} books with a Decision column`}
+                  >
+                    <FileSpreadsheet className="size-4" />
+                    Worksheet ({activeBooks.length})
+                  </a>
+                )}
                 {/* Whole-batch archive — CSV + source photos as one .zip.
                     On-demand only. A plain download link (no client JS):
                     the route sets the filename via Content-Disposition. */}
