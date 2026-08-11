@@ -33,11 +33,18 @@ export const users = pgTable("users", {
   // back off resurfaces every group. Lives on the user (not localStorage)
   // so the choice follows the account across devices.
   ignoreDuplicates: boolean("ignore_duplicates").notNull().default(false),
-  // Public read-only sharing. When non-null, anyone holding this
-  // unguessable token can browse this user's carts at /share/<token>
-  // without logging in (see lib/share.ts + proxy.ts). Regenerating the
-  // token revokes every previously-shared link; setting it null turns
-  // sharing off entirely. sharedAt records when it was last enabled.
+  // DEAD COLUMNS — public sharing was removed (the /share/<token> pages,
+  // /sharing, lib/share.ts and the API route are all gone). Nothing reads
+  // or writes these.
+  //
+  // They stay declared here on purpose. Dropping them is a destructive
+  // migration whose only benefit is tidiness, and the deployed app has to
+  // be updated *before* the drop or its /sharing page starts erroring
+  // against a missing column. Two unused nullable columns cost nothing;
+  // the safe ordering costs a deploy window. Not a trade worth making.
+  //
+  // Safe to drop later as a standalone change, once this cleanup has been
+  // deployed for a while: delete these two lines, then `npm run db:push`.
   shareToken: text("share_token").unique(),
   sharedAt: timestamp("shared_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -113,12 +120,31 @@ export const books = pgTable(
     // shelf. Null on manual entries and recrops (they don't have a
     // canonical position on the original photo).
     position: integer("position"),
+    // The photo this book came out of. Set by the vision route right after
+    // the upload row lands (the two are inserted in that order, so it's a
+    // follow-up update rather than a value known at insert).
+    //
+    // Two things depend on it. Within Carnegie, it's the link back to the
+    // source image for a given row. For Frick it's the physical address:
+    // batch_uploads.box_label is edited on the batch page long after the
+    // books exist, so joining through this column reads the current label
+    // rather than a stale copy.
+    //
+    // ON DELETE SET NULL, not cascade — deleting a photo must never delete
+    // the books it found. Null on manual entries, barcode scans, and any
+    // book whose upload row failed to write.
+    uploadId: uuid("upload_id").references(() => batchUploads.id, {
+      onDelete: "set null",
+    }),
     rawVision: jsonb("raw_vision"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("books_owner_idx").on(t.ownerId)],
+  (t) => [
+    index("books_owner_idx").on(t.ownerId),
+    index("books_upload_idx").on(t.uploadId),
+  ],
 );
 
 // One row per vision-photo upload. Lets the review UI show the user the
