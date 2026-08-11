@@ -102,9 +102,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       action: "reject",
       outcome: "ok",
     });
-    return NextResponse.redirect(new URL(`/batches/${id}`, request.url), {
-      status: 303,
-    });
+    // Anchor back to the row so the browser keeps your place. The rejected
+    // book leaves the active list, so the anchor lands where it used to be
+    // — which is where the next book you want is anyway.
+    const redirectUrl = new URL(`/batches/${id}`, request.url);
+    redirectUrl.hash = `book-${bookId}`;
+    return NextResponse.redirect(redirectUrl, { status: 303 });
   }
 
   // Permanent delete — hard DB removal, only reachable from the
@@ -126,9 +129,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       action: "permanent-delete",
       outcome: "ok",
     });
-    return NextResponse.redirect(new URL(`/batches/${id}`, request.url), {
-      status: 303,
-    });
+    // The row is genuinely gone, so there's no book to anchor to — go back
+    // to the Trash section the user was working in.
+    const redirectUrl = new URL(`/batches/${id}`, request.url);
+    redirectUrl.hash = "trash";
+    return NextResponse.redirect(redirectUrl, { status: 303 });
   }
 
   // Restore — flip a rejected row back to pending_review.
@@ -220,9 +225,18 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       action: "save",
       outcome: "ok",
     });
-    return NextResponse.redirect(new URL(`/batches/${id}`, request.url), {
-      status: 303,
-    });
+    // Confirm, un-confirm and Save edits all land here, and they're the
+    // actions you perform dozens of times per batch. Without this anchor
+    // each one bounced you to the top of the page — so confirming book 40
+    // of 60 meant scrolling back past 39 rows, every time. The rarer
+    // actions (restore, remove-tag, re-lookup) already did this.
+    //
+    // Edge case, accepted: with "hide confirmed" on, confirming removes the
+    // row, the anchor target disappears and the browser stays put. Still
+    // strictly better than jumping to the top.
+    const redirectUrl = new URL(`/batches/${id}`, request.url);
+    redirectUrl.hash = `book-${bookId}`;
+    return NextResponse.redirect(redirectUrl, { status: 303 });
   }
 
   // Relookup: try ISBN first, then title+author. The current `book` already
