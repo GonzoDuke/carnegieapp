@@ -348,9 +348,37 @@ export default async function BatchDetailPage({
           </div>
         </section>
 
-        {/* Add book — tabs */}
+        {/* Add book — tabs. Collapsed once the batch has books, because at
+            that point you're reviewing, not capturing, and the capture UI
+            was something you scrolled past on every visit and after every
+            action. Open by default on an empty batch, where adding books is
+            the only thing to do.
+
+            Spreading `open` rather than passing `open={false}` matters:
+            passing it explicitly would let React force the element shut on
+            re-render, fighting the user every time they opened it.
+
+            <details> keeps children mounted, so PhotoCapture's photo queue
+            survives collapsing, and the barcode camera is unaffected — it's
+            gated behind BarcodeScanner's own `scanning` state, not mount. */}
         <Card>
           <CardContent className="pt-6">
+            <details
+              className="group/add"
+              {...(activeBooks.length === 0 ? { open: true } : {})}
+            >
+              <summary className="hover:text-primary flex cursor-pointer list-none items-center gap-2 transition-colors">
+                <BookPlus className="size-4 shrink-0" />
+                <span className="font-heading text-lg font-semibold tracking-tight">
+                  Add books
+                </span>
+                <span className="text-muted-foreground hidden text-xs sm:inline">
+                  photo · scan · manual
+                </span>
+                <ChevronRight className="text-muted-foreground ml-auto size-4 shrink-0 transition-transform group-open/add:rotate-90" />
+              </summary>
+
+              <div className="pt-4">
             <Tabs defaultValue="photo">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="photo">
@@ -476,6 +504,8 @@ export default async function BatchDetailPage({
                 </div>
               </TabsContent>
             </Tabs>
+              </div>
+            </details>
           </CardContent>
         </Card>
 
@@ -506,7 +536,7 @@ export default async function BatchDetailPage({
             Restore (back to pending) and Delete forever (real DB
             delete). Hidden entirely when there's nothing to restore. */}
         {rejectedBooks.length > 0 && (
-          <section>
+          <section id="trash" className="scroll-mt-20">
             <details className="group">
               <summary className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium transition-colors">
                 <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
