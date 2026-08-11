@@ -2,12 +2,24 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Tool } from "@anthropic-ai/sdk/resources/messages";
 import sharp from "sharp";
 
-// Sonnet 4.6 is the default — good accuracy/cost balance for clean spines.
+// Sonnet is the default — good accuracy/cost balance for clean spines.
 // Opus is the escalation target: when a Sonnet pass returns any book under
 // LOW_CONFIDENCE, the route re-runs the same image on Opus to claw back
 // accuracy on the ambiguous shots. Haiku exists if you want to go cheaper.
-export const SONNET_MODEL = "claude-sonnet-4-6";
-export const OPUS_MODEL = "claude-opus-4-7";
+//
+// Moved off Sonnet 4.6 / Opus 4.7 because Sonnet 5 is the first Sonnet-tier
+// model with high-resolution vision: 2576px on the long edge against 1568px
+// before. Spine reading is resolution-bound — worn lettering, glare, and
+// vertical text are exactly what more pixels help with — so the ceiling
+// matters more here than raw model capability. See MAX_LONG_EDGE in
+// PhotoCapture, which was raised to match; feeding a 2048px image to a
+// 2576px ceiling leaves accuracy on the table.
+//
+// Cost note: a full-resolution image uses roughly 3x the image tokens of
+// the old ceiling. Re-run `npm run eval:vision` after touching either of
+// these and diff against eval/baseline.json before assuming it's a win.
+export const SONNET_MODEL = "claude-sonnet-5";
+export const OPUS_MODEL = "claude-opus-5";
 
 // Cached system prompt — prompt caching gives ~70% savings on repeat input
 // tokens, which matters because this prompt is verbose and every shelf photo
@@ -35,14 +47,19 @@ For every distinct physical book in the image, return a JSON entry with:
 
 Multi-volume series rule: when a single spine shows BOTH a series title and a volume identifier and the volume's own title (e.g. "The New Cambridge Modern History" + "Vol II" + "The Reformation 1520–1559"), capture the FULL combined string as one title. Do not split into multiple shorter entries — that's one physical book, one entry.
 
-Each physical book on the shelf gets exactly one entry. Two physical copies of the same book are two entries.
+Each book whose title you can actually read gets exactly one entry. Two physical copies of the same book are two entries.
+
+Completeness never overrides legibility. If you can see that a book is there but cannot read its title, omit it — do not emit a placeholder entry such as "Untitled Blue Book", "Unknown", or a description of the book's appearance. A missing entry is easy for the reviewer to add from the photo; a fabricated one has to be found and deleted. Returning fewer entries than there are physical books on the shelf is the correct outcome when the rest are unreadable.
 
 Skip:
 - Decorative objects, knick-knacks, picture frames, plants.
 - Non-book media: vinyl records, CD / DVD / Blu-ray cases, video games, magazines, three-ring binders. These often shelve alongside books and have spine-like geometry — but never catalog them as books.
 - Books where the spine is so obscured you cannot read more than a single letter or partial word.
+- Books identifiable only by color, size, or position rather than by printed text.
 
 If the image contains only non-book media (e.g. a wall of vinyl records, a DVD rack), return an empty books array.
+
+The books array carries catalog records and nothing else. Never use an entry to explain, comment, or tell the reviewer what you saw — not even to say the image contains no books. An entry titled "This is not a book" or "No books found" is a false catalog record and is worse than returning nothing. When there are no readable books, the correct and complete response is an empty array with no explanation.
 
 Return your output by calling the report_books tool. Each detected book becomes one entry in the books array.
 
@@ -144,7 +161,14 @@ export async function extractBooksFromImage(
 ): Promise<VisionExtraction> {
   const response = await client().messages.create({
     model,
-    max_tokens: 2048,
+    // Ceiling, not a budget — you're billed for tokens actually generated,
+    // so headroom is free. It was 2048, which is thin: a 25-book shelf (the
+    // top of the intended range) with long titles and spine stickers can
+    // approach that, and the failure mode is silent — the tool payload is
+    // cut off mid-array and the photo just appears to have found fewer
+    // books than it did. The 28-photo eval never exceeds 16 books, so the
+    // old cap was untested at the range it was meant to cover.
+    max_tokens: 8192,
     system: [
       {
         type: "text",
@@ -281,7 +305,10 @@ export async function detectSpineBoxes(
 ): Promise<DetectionResult> {
   const response = await client().messages.create({
     model,
-    max_tokens: 2048,
+    // Same reasoning as the extraction call above: one box per spine, so a
+    // dense shelf produces a long array and a truncated one silently loses
+    // the rightmost spines.
+    max_tokens: 4096,
     system: [
       {
         type: "text",

@@ -24,7 +24,12 @@ type PhotoCaptureProps = {
   batchId: string;
 };
 
-const MAX_LONG_EDGE = 2048;
+// Matches the vision models' high-resolution ceiling (2576px on the long
+// edge). Was 2048, which pre-shrank every photo below what the model could
+// actually use — spine reading is resolution-bound, so those pixels were
+// being thrown away before the image ever left the phone. Anything larger
+// than 2576 gets downscaled server-side anyway, so this is the useful max.
+const MAX_LONG_EDGE = 2576;
 const JPEG_QUALITY = 0.85;
 
 type ApiSummary = {
@@ -78,6 +83,16 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
   // Generate / clean up preview URL as the current photo changes.
   // Each photo starts with no crop set, so onImageLoad re-initializes to
   // the full-image rectangle.
+  //
+  // react-hooks/set-state-in-effect flags the setState calls below. This is
+  // the case the rule can't distinguish: an object URL is an external
+  // resource with a create/revoke lifecycle that must be tied to a React
+  // value, which is precisely what effects are for. Deriving the URL during
+  // render instead (useMemo) would create one on every StrictMode double-
+  // render and leak it, which is worse than the cascading render the rule
+  // is guarding against. Scoped disable with the reason rather than a
+  // contorted rewrite.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!currentFile) {
       setPreviewUrl(null);
@@ -89,6 +104,7 @@ export default function PhotoCapture({ batchId }: PhotoCaptureProps) {
     setPixelCrop(null);
     return () => URL.revokeObjectURL(url);
   }, [currentFile]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function onImageLoad(event: React.SyntheticEvent<HTMLImageElement>) {
     // Default the crop rectangle to the full image so "Analyze" with no
