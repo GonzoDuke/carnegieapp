@@ -348,6 +348,14 @@ export default function BooksList({ batchId, books }: Props) {
                             {book.isbn13 && ` · ${book.isbn13}`}
                             {book.isbn10 && !book.isbn13 && ` · ${book.isbn10}`}
                           </span>
+                          {/* Call number in the collapsed row: it's the
+                              shelf address, so it should be scannable
+                              down a list without expanding every card. */}
+                          {book.lcc && (
+                            <code className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 font-mono text-[0.7rem]">
+                              {book.lcc}
+                            </code>
+                          )}
                           <Badge
                             variant={statusBadgeVariant(book.status)}
                             className="shrink-0"
@@ -384,17 +392,6 @@ export default function BooksList({ batchId, books }: Props) {
                             </button>
                           </form>
                         ))}
-                      </div>
-                    )}
-
-                    {book.lcc && (
-                      <div className="mt-2 flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground font-medium uppercase tracking-wider">
-                          LCC
-                        </span>
-                        <code className="bg-muted rounded px-2 py-0.5 font-mono">
-                          {book.lcc}
-                        </code>
                       </div>
                     )}
 
@@ -502,6 +499,39 @@ export default function BooksList({ batchId, books }: Props) {
                             maxLength={100}
                           />
                         </div>
+                      </div>
+                      {/* Call number. The lookup chain fills this when a
+                          provider has it, but it misses often enough — and
+                          disagrees with the sticker on the spine often
+                          enough — that it has to be correctable by hand.
+                          Re-lookup only fills empty fields, so a value you
+                          type here survives. */}
+                      <div className="grid gap-2">
+                        <Label htmlFor={`lcc-${book.id}`}>
+                          Call number
+                          <span className="text-muted-foreground ml-1 font-normal">
+                            (LCC)
+                          </span>
+                        </Label>
+                        <Input
+                          id={`lcc-${book.id}`}
+                          type="text"
+                          name="lcc"
+                          defaultValue={book.lcc ?? ""}
+                          placeholder="e.g. PR6045.O72 H37 1999"
+                          maxLength={100}
+                          className="font-mono"
+                        />
+                        {spineSticker(book) && (
+                          <p className="text-muted-foreground text-xs">
+                            Read off the spine:{" "}
+                            <code className="bg-muted rounded px-1.5 py-0.5 font-mono">
+                              {spineSticker(book)}
+                            </code>{" "}
+                            — not an LC call number, so it wasn&apos;t filled
+                            in automatically.
+                          </p>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 pt-2">
                         <Button type="submit" variant="outline" size="sm">
@@ -668,6 +698,24 @@ function statusBadgeVariant(
     default:
       return "secondary";
   }
+}
+
+// The raw shelf sticker vision read off the spine, surfaced only when it
+// didn't make it into the call-number field. `extractLcc` accepts LC-shaped
+// strings and nothing else, so a Dewey number ("813.54 STE") or a genre
+// label ("FIC TOL") gets stripped out of the title and then dropped. That's
+// real information about where the book sits, and for a collection that
+// isn't LC-classified it may be the only classification there is — so show
+// it and let the user decide whether to keep it.
+function spineSticker(book: Book): string | null {
+  if (book.lcc) return null;
+  const raw = book.rawVision;
+  if (!raw || typeof raw !== "object") return null;
+  const vision = (raw as { vision?: unknown }).vision;
+  if (!vision || typeof vision !== "object") return null;
+  const sticker = (vision as { spine_classification?: unknown })
+    .spine_classification;
+  return typeof sticker === "string" && sticker.trim() ? sticker.trim() : null;
 }
 
 function confidenceDot(

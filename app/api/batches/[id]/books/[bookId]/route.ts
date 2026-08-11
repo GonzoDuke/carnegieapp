@@ -27,6 +27,12 @@ const ActionSchema = z.object({
   isbn: z.string().trim().max(20).optional().nullable(),
   publisher: z.string().trim().max(200).optional().nullable(),
   pubDate: z.string().trim().max(100).optional().nullable(),
+  // Library of Congress call number. Editable because the lookup chain
+  // gets it wrong or misses it often enough to matter, and the call
+  // number is the book's shelf address — the thing you sort a shelflist
+  // by and walk a range with. Vision reads spine stickers into
+  // raw_vision.spine_classification; this is where a correction lands.
+  lcc: z.string().trim().max(100).optional().nullable(),
   status: z
     .enum(["pending_review", "confirmed", "rejected"])
     .optional(),
@@ -184,6 +190,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     updates.publisher = parsed.data.publisher || null;
   if (parsed.data.pubDate !== undefined)
     updates.pubDate = parsed.data.pubDate || null;
+  if (parsed.data.lcc !== undefined) updates.lcc = parsed.data.lcc || null;
   if (parsed.data.status !== undefined) updates.status = parsed.data.status;
   if (parsed.data.authors !== undefined) {
     updates.authors = parsed.data.authors

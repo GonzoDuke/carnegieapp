@@ -238,6 +238,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           // photo's positions were assigned, so there's no canonical
           // left-to-right slot for them.
           position: null,
+          // Unlike the main vision route, the upload already exists here —
+          // we cropped it — so the link is known at insert time. Same box
+          // label, same source photo as the books the first pass found.
+          uploadId,
           rawVision: {
             vision: book,
             lookupSource: lookup?.source ?? null,

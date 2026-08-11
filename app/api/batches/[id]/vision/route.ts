@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { put } from "@vercel/blob";
 import { getDb, schema } from "@/lib/db/client";
 import { requireUserId } from "@/lib/auth";
@@ -316,16 +316,40 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const blob = await blobPromise;
   if (blob) {
     try {
-      await db.insert(schema.batchUploads).values({
-        ownerId: userId,
-        batchId: id,
-        blobUrl: blob.url,
-        blobPath: blob.pathname,
-        model: extraction.model,
-        escalated,
-        detectedCount: extraction.books.length,
-        insertedCount: inserted.length,
-      });
+      const [upload] = await db
+        .insert(schema.batchUploads)
+        .values({
+          ownerId: userId,
+          batchId: id,
+          blobUrl: blob.url,
+          blobPath: blob.pathname,
+          model: extraction.model,
+          escalated,
+          detectedCount: extraction.books.length,
+          insertedCount: inserted.length,
+        })
+        .returning({ id: schema.batchUploads.id });
+
+      // Link the books back to the photo they came from. This has to be a
+      // follow-up update, not a column on the insert above: the books go in
+      // first (so the response can return them fast) and the upload row is
+      // written after, once the parallel Blob leg resolves. Best-effort —
+      // if it fails the books are still correct, they just lose the link to
+      // their source image and, downstream, their box label.
+      if (upload && inserted.length > 0) {
+        await db
+          .update(schema.books)
+          .set({ uploadId: upload.id })
+          .where(
+            and(
+              eq(schema.books.ownerId, userId),
+              inArray(
+                schema.books.id,
+                inserted.map((b) => b.id),
+              ),
+            ),
+          );
+      }
     } catch (err) {
       log("vision.blob_error", {
         request_id: requestId,
