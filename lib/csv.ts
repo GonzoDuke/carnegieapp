@@ -34,7 +34,7 @@ export function batchSlug(name: string): string {
 }
 
 // One book → one LibraryThing row, given its batch for context. Shared by the
-// per-cart export and the cross-cart master list so both stay identical.
+// per-batch export and the cross-batch master list so both stay identical.
 function libraryThingRow(book: Book, batch: CsvBatch) {
   // LibraryThing prefers ISBN-13; fall back to ISBN-10 if that's all we have.
   const isbn = book.isbn13 || book.isbn10 || "";
@@ -81,18 +81,19 @@ export function buildLibraryThingCsv(books: Book[], batch: CsvBatch): string {
   });
 }
 
-// Master-list columns: the LibraryThing set with a leading "Cart" so the
-// combined sheet stays sortable/filterable by cart in Excel.
-export const MASTER_COLUMNS = ["Cart", ...LIBRARYTHING_COLUMNS] as const;
+// Master-list columns: the LibraryThing set with a leading "Batch" so the
+// combined sheet stays sortable/filterable by batch in Excel.
+export const MASTER_COLUMNS = ["Batch", ...LIBRARYTHING_COLUMNS] as const;
 
-// One CSV across many carts — every book from every cart in a single sheet.
-// Each row keeps its cart's name up front (and, as before, in Collections),
-// so nothing about the per-cart LibraryThing format changes downstream.
+// One CSV across many batches — every book from every batch in a single
+// sheet. Each row keeps its batch name up front (and, as before, in
+// Collections), so nothing about the per-batch LibraryThing format changes
+// downstream.
 export function buildMasterCsv(
   items: { book: Book; batch: CsvBatch }[],
 ): string {
   const rows = items.map(({ book, batch }) => ({
-    Cart: batch.name,
+    Batch: batch.name,
     ...libraryThingRow(book, batch),
   }));
   return stringify(rows, {

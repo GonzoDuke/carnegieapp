@@ -30,8 +30,9 @@ export default async function ArchivePage() {
       createdAt: schema.batches.createdAt,
       exportedAt: schema.batches.exportedAt,
       // Exclude rejected (trashed) books so the count reflects the real
-      // catalog — matching the public share view and the LibraryThing export.
-      // Counting all rows here over-stated batches with trashed books.
+      // catalog — matching the CSV export, which only ever includes
+      // confirmed rows. Counting all rows here over-stated batches with
+      // trashed books.
       bookCount: sql<number>`(SELECT COUNT(*)::int FROM books WHERE books.batch_id = batches.id AND books.status <> 'rejected')`,
       sampleBooks: sql<
         Array<{
@@ -95,7 +96,7 @@ export default async function ArchivePage() {
           <h1 className="font-heading text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
             <span className="tabular-nums">{batches.length}</span>{" "}
             <span className="text-muted-foreground">
-              {batches.length === 1 ? "batch" : "batches"} sent to LibraryThing.
+              {batches.length === 1 ? "batch" : "batches"} completed.
             </span>
           </h1>
           {totalBooks > 0 && (
@@ -109,7 +110,7 @@ export default async function ArchivePage() {
           {batches.length > 0 && (
             <div className="pt-1">
               {/* Plain anchor → the master CSV streams as a download. One sheet
-                  merging every archived cart, with a Cart column up front. */}
+                  merging every archived batch, with a Batch column up front. */}
               <a
                 href="/api/export/master.csv"
                 className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -126,8 +127,8 @@ export default async function ArchivePage() {
             <CardContent className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-base">
               <Check className="text-primary size-6" />
               <span>
-                Nothing here yet. Batches land here once you export them to
-                LibraryThing.
+                Nothing here yet. Batches land here once you mark them
+                complete on the batch page.
               </span>
             </CardContent>
           </Card>
@@ -151,7 +152,7 @@ export default async function ArchivePage() {
                         </div>
                         <p className="text-muted-foreground inline-flex items-center gap-2 text-sm">
                           <Check className="text-primary size-4" />
-                          Sent{" "}
+                          Completed{" "}
                           {b.exportedAt!.toLocaleDateString(undefined, {
                             month: "short",
                             day: "numeric",

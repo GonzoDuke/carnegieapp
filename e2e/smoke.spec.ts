@@ -16,16 +16,7 @@ const TEST_ISBN = "9780743273565";
 
 test("login → create batch → quick-add ISBN → export CSV", async ({
   page,
-  context,
 }) => {
-  // The export button opens librarything.com in a new tab. We don't
-  // care about it for the test, and we'd rather not pelt their server
-  // on every CI run — abort the request and auto-close the popup.
-  await context.route("**://www.librarything.com/**", (route) => route.abort());
-  page.on("popup", (popup) => {
-    popup.close().catch(() => {});
-  });
-
   // --- Login ---
   await page.goto("/login");
   await page.getByLabel("Passcode").fill(PIN);
@@ -72,14 +63,35 @@ test("login → create batch → quick-add ISBN → export CSV", async ({
   // --- Export ---
   // ExportButton renders as <a href=".../export.csv" download>, so it
   // shows up as a link role. Filter on the "(1)" count so we don't
-  // accidentally match the disabled "(0)" variant during a slow render.
-  const exportLink = page.getByRole("link", {
-    name: /send to librarything \(1\)/i,
-  });
+  // accidentally match a stale "(0)" variant during a slow render.
+  //
+  // The book is still pending_review at this point, so confirm it first —
+  // only confirmed books are exported.
+  await page.getByRole("button", { name: /confirm this book/i }).click();
+  await expect(page).toHaveURL(new RegExp(`/batches/${batchId}`));
+
+  const exportLink = page.getByRole("link", { name: /download csv \(1\)/i });
   await expect(exportLink).toBeVisible();
 
   const downloadPromise = page.waitForEvent("download");
   await exportLink.click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/\.csv$/);
+
+  // Downloading must not archive the batch. This used to be a side effect
+  // of the GET, which meant pulling a working copy silently filed the batch
+  // away with no way back. "Mark complete" still being offered is the proof
+  // the batch is still on the workbench.
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: /mark complete/i }),
+  ).toBeVisible();
+
+  // --- Complete / reopen round trip ---
+  await page.getByRole("button", { name: /mark complete/i }).click();
+  await expect(page.getByText(/^Completed /)).toBeVisible();
+  await page.getByRole("button", { name: /reopen/i }).click();
+  await expect(
+    page.getByRole("button", { name: /mark complete/i }),
+  ).toBeVisible();
 });

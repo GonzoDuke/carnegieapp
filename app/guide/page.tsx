@@ -81,7 +81,7 @@ export default function GuidePage() {
               "Tap Analyze. 15–30 seconds.",
               "Books land in the Needs review queue.",
               "Quick-fill ISBNs (top of batch) handles the ones missing ISBN.",
-              "Tap Send to LibraryThing when all rows look right.",
+              "Tap Download CSV when all rows look right.",
             ]}
           />
 

@@ -35,17 +35,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   const csv = buildLibraryThingCsv(books, batch);
   const filename = csvFilename(batch.name);
 
-  // Stamp the batch as exported. Only when there's actually content to export
-  // — empty CSVs shouldn't count as a real export. Photos stay with the
-  // batch so a tester can revisit the original shelf after export; they're
-  // cheap to keep on Blob and only go away when the batch is deleted.
-  if (books.length > 0) {
-    await db
-      .update(schema.batches)
-      .set({ exportedAt: new Date() })
-      .where(and(eq(schema.batches.id, id), eq(schema.batches.ownerId, userId)));
-  }
-
+  // Deliberately a pure read: downloading the CSV changes nothing. This
+  // route used to stamp batches.exported_at, which meant pulling a working
+  // copy of a list silently filed the batch into the Archive and off the
+  // home page — with no way back. Marking a batch finished is now an
+  // explicit action (POST _action=complete on the batch route), so you can
+  // export the same batch as many times as the work needs.
   return new NextResponse(csv, {
     status: 200,
     headers: {

@@ -12,6 +12,7 @@ import {
   Pencil,
   ScanBarcode,
   Sparkles,
+  Undo2,
 } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import BarcodeScanner from "@/components/BarcodeScanner";
@@ -249,17 +250,49 @@ export default async function BatchDetailPage({
               </div>
             )}
 
-            {batch.exportedAt && (
-              <div className="text-primary inline-flex items-center gap-1 text-xs font-medium">
-                <Check className="size-3" />
-                <span>
-                  Sent to LibraryThing{" "}
+            {/* Batch lifecycle. exported_at is what separates a batch on the
+                workbench from one in the Archive, and it's now set only by
+                these buttons — downloading the CSV no longer touches it. */}
+            {batch.exportedAt ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-primary inline-flex items-center gap-1 text-xs font-medium">
+                  <Check className="size-3" />
+                  Completed{" "}
                   {batch.exportedAt.toLocaleString(undefined, {
                     dateStyle: "medium",
                     timeStyle: "short",
                   })}
                 </span>
+                <form method="POST" action={`/api/batches/${batch.id}`}>
+                  <input type="hidden" name="_action" value="reopen" />
+                  <Button
+                    type="submit"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground h-auto px-1.5 py-0.5 text-xs"
+                    title="Move this batch back to the workbench"
+                  >
+                    <Undo2 className="size-3" />
+                    Reopen
+                  </Button>
+                </form>
               </div>
+            ) : (
+              confirmedCount > 0 && (
+                <form method="POST" action={`/api/batches/${batch.id}`}>
+                  <input type="hidden" name="_action" value="complete" />
+                  <Button
+                    type="submit"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground h-auto px-1.5 py-0.5 text-xs"
+                    title="Mark this batch finished and file it in the Archive"
+                  >
+                    <Check className="size-3" />
+                    Mark complete
+                  </Button>
+                </form>
+              )
             )}
 
             {/* Edit batch info disclosure */}

@@ -6,7 +6,7 @@ import { buildMasterCsv } from "@/lib/csv";
 
 // Master list: every confirmed book across all of the current account's
 // exported, non-deleted carts, merged into one CSV. Same columns as the
-// per-cart LibraryThing export, plus a leading "Cart" column. Owner-scoped
+// per-batch LibraryThing export, plus a leading "Batch" column. Owner-scoped
 // and behind auth (under /api/, so the proxy gates it) — this is the
 // operator's full catalog, not the public share surface.
 export async function GET() {

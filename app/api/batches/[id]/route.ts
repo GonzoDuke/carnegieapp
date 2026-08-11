@@ -94,6 +94,34 @@ const FormUpdateSchema = UpdateBatchSchema.extend({
   _action: z.literal("update"),
 });
 
+// `complete` / `reopen` toggle batches.exported_at, which is the only
+// thing separating a batch on the workbench from one in the Archive.
+// This used to be a side effect of downloading the CSV; making it
+// explicit means exporting is repeatable and filing is reversible.
+const FormLifecycleSchema = z.object({
+  _action: z.enum(["complete", "reopen"]),
+});
+
+async function applyLifecycle(
+  id: string,
+  userId: string,
+  action: "complete" | "reopen",
+) {
+  const db = getDb();
+  const [row] = await db
+    .update(schema.batches)
+    .set({ exportedAt: action === "complete" ? new Date() : null })
+    .where(
+      and(
+        eq(schema.batches.id, id),
+        eq(schema.batches.ownerId, userId),
+        isNull(schema.batches.deletedAt),
+      ),
+    )
+    .returning({ id: schema.batches.id });
+  return row;
+}
+
 // Form-friendly POST so the inline edit form on the batch page can submit
 // without JavaScript. Mirrors the per-book edit pattern.
 export async function POST(request: NextRequest, { params }: RouteContext) {
@@ -101,6 +129,18 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const { id } = await params;
   const form = await request.formData();
   const body = Object.fromEntries(form.entries());
+
+  const lifecycle = FormLifecycleSchema.safeParse(body);
+  if (lifecycle.success) {
+    const row = await applyLifecycle(id, userId, lifecycle.data._action);
+    if (!row) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return NextResponse.redirect(new URL(`/batches/${id}`, request.url), {
+      status: 303,
+    });
+  }
+
   const parsed = FormUpdateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(

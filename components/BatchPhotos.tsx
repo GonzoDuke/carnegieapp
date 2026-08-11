@@ -28,7 +28,9 @@ export default function BatchPhotos({ uploads }: Props) {
 
   // Inline box labels under each thumbnail. `labels` holds the live input
   // text; `savedRef` mirrors what's persisted so a blur only PATCHes on an
-  // actual change. These drive the box grouping on the public share view.
+  // actual change. The label is copied onto every book the photo produces
+  // (see the vision route), which is how a book gets a physical address
+  // finer than its batch.
   const [labels, setLabels] = useState<Record<string, string>>(() =>
     Object.fromEntries(uploads.map((u) => [u.id, u.boxLabel ?? ""])),
   );
@@ -36,7 +38,7 @@ export default function BatchPhotos({ uploads }: Props) {
     Object.fromEntries(uploads.map((u) => [u.id, u.boxLabel ?? ""])),
   );
   // Existing labels become autocomplete suggestions so "Box 1" stays
-  // consistent across a cart's photos without retyping.
+  // consistent across a batch's photos without retyping.
   const boxOptions = Array.from(
     new Set(
       uploads
@@ -147,8 +149,8 @@ export default function BatchPhotos({ uploads }: Props) {
         </span>
       </div>
       <p className="text-muted-foreground text-xs">
-        Tap a photo to view or crop-and-re-read. Label each photo&apos;s box
-        below to group them on your share link.
+        Tap a photo to view or crop-and-re-read. Label the box a photo shows
+        and every book it found inherits that label.
       </p>
       <datalist id="box-label-options">
         {boxOptions.map((label) => (
