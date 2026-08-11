@@ -53,6 +53,7 @@ PLAYBOOK.docx
 reference.docx
 reference_custom.docx
 MARKET-RESEARCH-BRIEF.md
+OVERVIEW.md
 
 # Playwright e2e artifacts — recordings, traces, reports
 /test-results
@@ -68,5 +69,10 @@ eval/truth/*
 !eval/truth/.gitkeep
 eval/baseline*.json
 eval/_*.log
+# Snapshots taken before a change, for before/after comparison. Same
+# reasoning as baseline*.json — they're measurement artifacts tied to a
+# local photo set that isn't in the repo, so they'd be meaningless to
+# anyone else. The leading underscore puts them outside baseline*.json.
+eval/_*.json
 
 .vercel
