@@ -3,6 +3,96 @@
 Carnegie — a personal-library cataloger. Photograph shelves, scan
 barcodes, type ISBNs; export LibraryThing-compatible CSV.
 
+## 1.2.0 — 2026-08-11
+
+Carnegie is now scoped as an **intake tool** and nothing more. Browsing a
+collection, making decisions about it, and publishing a finding aid move
+to Frick, a companion app over the same database. This release removes
+what Frick supersedes and adds what it needs.
+
+One database migration, additive only. Nothing was dropped.
+
+### Removed
+
+- **Public sharing is gone** — the `/share/<token>` pages, `/sharing`,
+  the API route, `lib/share.ts`, and the four share components. It
+  exposed every non-deleted batch through a single account-wide token,
+  including books still in the review queue. Frick replaces it with
+  per-collection publishing and cross-batch search.
+- Carnegie now has **no anonymous surface**. The app holding the
+  Anthropic key, blob credentials, and camera access serves nothing
+  without a session.
+- `users.share_token` / `shared_at` are kept as dead columns rather than
+  dropped — removing them is destructive, has to land after a deploy,
+  and buys only tidiness. See the note in `lib/db/schema.ts`.
+
+### Changed
+
+- **Downloading a CSV no longer archives the batch.** It used to stamp
+  `exported_at`, so pulling a working copy silently filed the batch away
+  with no way back. Export is now a pure read; "Mark complete" and
+  "Reopen" are explicit and reversible.
+- Export no longer opens LibraryThing in a new tab, and the button reads
+  "Download CSV". LibraryThing is one destination, not the only one.
+- **"Batch" is the noun everywhere.** The UI had drifted to "cart" while
+  the schema and routes said "batch". The master CSV's leading column is
+  now `Batch`.
+- `max_tokens` raised on the vision calls (2048 → 8192 extraction,
+  → 4096 detection). It's a ceiling, not a budget, and 2048 was untested
+  at the 25-book shelves the app targets — truncation there fails
+  silently.
+
+### Added
+
+- **Call numbers are editable.** Display-only before, which made a shelf
+  address you couldn't correct when the lookup missed or disagreed with
+  the spine. Also shown in the collapsed row so a list reads in shelf
+  order.
+- **Non-LC spine stickers are surfaced instead of discarded.** Vision
+  reads shelf stickers, but `extractLcc` accepts LC-shaped strings only,
+  so a Dewey number or a genre label was stripped and dropped. For a
+  collection that isn't LC-classified that may be the only classification
+  there is.
+- **`books.upload_id`** — links a book to the photo it came from. Frick
+  joins through it to read the current box label. `ON DELETE SET NULL`;
+  existing rows are NULL and can't be backfilled.
+- `drizzle.config.ts` gains `schemaFilter` / `tablesFilter` / `strict`.
+  Without them a routine `db:push` could drop tables it didn't know
+  about — which matters now that Frick shares the database.
+
+### Vision
+
+Moved to **Claude Sonnet 5** with **Opus 5** escalation, and raised the
+capture ceiling to 2576px to match their high-resolution support.
+Measured across the 28-photo eval, full set:
+
+| | Sonnet 4.6 | Sonnet 5 |
+| --- | --- | --- |
+| Precision | 0.970 | **0.984** |
+| Recall | 0.987 | **0.993** |
+| Phantom extractions | 0 | **0** |
+
+The eval also caught two prompt bugs that had nothing to do with model
+tier — both latent ambiguities a more literal model resolved differently.
+It emitted placeholder entries ("Untitled Blue Book") for spines it could
+see but not read, because "each physical book gets exactly one entry"
+preceded the skip rule; and given a photo of vinyl it returned a book
+titled "This is not a book, it is a vinyl record collection" rather than
+an empty array. Both prompts now say so explicitly. Uncorrected, those
+two accounted for the entire apparent regression.
+
+One ground-truth error corrected: `On Bullshit` is genuinely on the
+`easy2` / `diagnose` shelf — dim and partly occluded at the top of the
+stack — and was being scored as a false positive because the old model
+never found it.
+
+### Dependencies
+
+15 vulnerabilities → **0**. `undici` (7 high, via `@vercel/blob`) and
+`sharp`, which needed a major bump; its crop pipeline was exercised
+against a real photo rather than trusted to semver. Next, React,
+lucide-react, Base UI, Playwright, drizzle-kit and Tailwind current.
+
 ## 1.1.0 — 2026-05-13
 
 Point release gathering the post-1.0 lookup, export, and mobile-UI
