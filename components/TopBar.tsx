@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { Archive, Info, LogOut, Mail, Map } from "lucide-react";
+import { Archive, Info, LogOut, Mail, Map, Search } from "lucide-react";
 import { getDb, schema } from "@/lib/db/client";
 import { getCurrentUserId } from "@/lib/auth";
 import BrandMark from "@/components/BrandMark";
@@ -64,6 +64,22 @@ export default async function TopBar() {
               {userName}
             </span>
           )}
+          {/* SearchBar is `hidden md:flex`, and below that breakpoint nothing
+              linked to /search at all — so on a phone, the device you're
+              actually holding at a shelf, the library wasn't searchable.
+              This icon is the exact inverse (`md:hidden`), so precisely one
+              of the two is visible at any width. */}
+          <Link
+            href="/search"
+            title="Search your library"
+            className={buttonVariants({
+              variant: "ghost",
+              size: "icon-sm",
+              className: "text-muted-foreground md:hidden",
+            })}
+          >
+            <Search className="size-4" />
+          </Link>
           <Link
             href="/archive"
             title="Archive"
