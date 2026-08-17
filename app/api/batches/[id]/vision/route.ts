@@ -13,7 +13,7 @@ import {
 } from "@/lib/vision";
 import { lookupByIsbn, normalizeIsbn } from "@/lib/lookup";
 import { lookupByTitle } from "@/lib/lookup/title";
-import { extractLcc, stripSpineSticker } from "@/lib/lookup/classification";
+import { parseLcc, stripSpineSticker } from "@/lib/lookup/classification";
 import { getBudget, incrementUsage } from "@/lib/vision-budget";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -286,9 +286,19 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         pubDate: lookup?.pubDate ?? null,
         coverUrl: lookup?.coverUrl ?? null,
         tags: lookup?.subjects ?? [],
-        // API-returned LCC always wins over a sticker-derived one — the
-        // provider has the canonical edition data. Sticker is the fallback.
-        lcc: lookup?.lcc ?? visionLcc ?? null,
+        // The sticker wins when it's a complete call number.
+        //
+        // This used to be the other way round, on the theory that a provider
+        // has canonical edition data. In practice providers hand back a
+        // different edition's number, or a different work's entirely: a book
+        // labelled "DT 20 .R45 2019" was stored as "DT1787 .T48 2001". For a
+        // library's own collection that's not a near-miss, it's wrong — the
+        // sticker IS the shelf address of the physical copy in hand, and the
+        // provider is describing some other copy somewhere else.
+        //
+        // "Complete" means the read includes a cutter. A bare class like
+        // "DT14" is a weak read and still defers to the provider.
+        lcc: (visionLcc?.complete ? visionLcc.value : null) ?? lookup?.lcc ?? visionLcc?.value ?? null,
         description: lookup?.description ?? null,
         confidence: book.confidence,
         position: book.position,
@@ -384,7 +394,7 @@ async function enrichDetected(book: VisionBook) {
     title: stripSpineSticker(book.title) || book.title,
     author: book.author ? stripSpineSticker(book.author) || book.author : null,
   };
-  const visionLcc = extractLcc(book.spine_classification);
+  const visionLcc = parseLcc(book.spine_classification);
 
   // If the model spotted an ISBN, use the existing chain — much higher quality.
   if (cleanedBook.visible_isbn) {

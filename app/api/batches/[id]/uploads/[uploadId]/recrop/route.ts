@@ -13,7 +13,7 @@ import {
 } from "@/lib/vision";
 import { lookupByIsbn, normalizeIsbn } from "@/lib/lookup";
 import { lookupByTitle } from "@/lib/lookup/title";
-import { extractLcc, stripSpineSticker } from "@/lib/lookup/classification";
+import { parseLcc, stripSpineSticker } from "@/lib/lookup/classification";
 import { getBudget, incrementUsage } from "@/lib/vision-budget";
 
 type RouteContext = {
@@ -230,7 +230,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           pubDate: lookup?.pubDate ?? null,
           coverUrl: lookup?.coverUrl ?? null,
           tags: lookup?.subjects ?? [],
-          lcc: lookup?.lcc ?? visionLcc ?? null,
+          // Same precedence as the main vision route: a complete sticker
+          // read (one with a cutter) beats the provider, because it's the
+          // shelf address of the copy actually in hand.
+          lcc: (visionLcc?.complete ? visionLcc.value : null) ?? lookup?.lcc ?? visionLcc?.value ?? null,
           description: lookup?.description ?? null,
           confidence: book.confidence,
           // Recrop additions land at the end of the review queue —
@@ -285,7 +288,7 @@ async function enrichDetected(book: VisionBook) {
     title: stripSpineSticker(book.title) || book.title,
     author: book.author ? stripSpineSticker(book.author) || book.author : null,
   };
-  const visionLcc = extractLcc(book.spine_classification);
+  const visionLcc = parseLcc(book.spine_classification);
 
   if (cleanedBook.visible_isbn) {
     const outcome = await lookupByIsbn(cleanedBook.visible_isbn);

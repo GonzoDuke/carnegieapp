@@ -1,18 +1,41 @@
-// LCC pattern: 1-3 capital letters, then digits, then optional decimal cutter
-// (e.g. ".O72"), then zero-or-more space-separated cutters (e.g. "H37" or
-// ".S53"), then an optional 4-digit year. Anchored with word boundaries so we
-// can find it inside a longer raw sticker string.
+// Spine labels are printed stacked, one element per line:
 //
-// Examples that match:
-//   PR6045.O72 H37 1999
-//   BX1746 .S53 1986
-//   Q175.S94
-// Examples that don't:
-//   813.54 STE  (starts with digits — DDC, not LCC)
-//   FIC TOL     (no digits)
-//   YA SF       (no digits)
+//     E
+//     184
+//     .A75
+//     A125
+//     2019
+//
+// so vision reads them back as "E 184 .A75 A125 2019" — with a space between
+// the class letters and the class number. The previous pattern required them
+// to be adjacent (`[A-Z]{1,3}\d+`), which meant it couldn't match "E 184" at
+// all. It then skipped ahead and matched the CUTTER as though it were the
+// class, turning "DS 126.5 .R37 2008" into "R37 2008" and "F 1410 .C727 2008"
+// into "C727 2008" — a call number that points nowhere.
+//
+// This version allows the space, allows a decimal in the class number
+// (DS126.5), and allows cutters written with or without their leading period.
+//
+// Matches:
+//   E 184 .A75 A125 2019     ->  E184 .A75 A125 2019
+//   DS 126.5 .R37 2008       ->  DS126.5 .R37 2008
+//   DC 148 D5313 1989        ->  DC148 .D5313 1989
+//   PR6045.O72 H37 1999      ->  PR6045 .O72 H37 1999
+// Doesn't match:
+//   813.54 STE   (leading digits — Dewey, not LC)
+//   FIC TOL      (no digits)
+//   SHERIDAN     (no digits)
 const LCC_REGEX =
-  /\b[A-Z]{1,3}\d+(?:\.[A-Z]\d+)?(?:\s+\.?[A-Z]\d+)*(?:\s+\d{4})?\b/;
+  /\b([A-Z]{1,3})\s*(\d{1,4}(?:\.\d+)?)((?:\s*\.\s*[A-Z]+\d+|\s+[A-Z]\d+)*)(?:\s+(\d{4}))?/;
+
+// Stripping a call number out of a TITLE is a different risk than reading one
+// out of a field that's supposed to contain one. "USA 1776" is a plausible
+// title fragment and matches the permissive pattern above, so the strip
+// variant additionally requires at least one cutter — which every real LC
+// spine label has. False negatives here are harmless; false positives quietly
+// corrupt the title we hand to the lookup chain.
+const LCC_STRIP_REGEX =
+  /\b[A-Z]{1,3}\s*\d{1,4}(?:\.\d+)?(?:\s*\.\s*[A-Z]+\d+|\s+[A-Z]\d+)+(?:\s+\d{4})?/g;
 
 // Dewey: 3 digits, optional decimal expansion, then a 2–4 letter cutter.
 const DDC_REGEX = /\b\d{3}(?:\.\d+)?\s+[A-Z]{2,4}\b/g;
@@ -26,10 +49,40 @@ const TRAILING_SHELF_REGEX =
 const LEADING_SHELF_REGEX =
   /^(?:FIC|YA|REF|JUV|BIO|GN|MYS|SF)\s+[A-Z]{3}\s+/;
 
-export function extractLcc(text: string | null): string | null {
+export type ParsedLcc = {
+  /** Canonical form, e.g. "E184 .A75 A125 2019". */
+  value: string;
+  /**
+   * True when the call number carries at least one cutter — i.e. it points
+   * at a shelf position rather than just a subject class. "DT14" is a real
+   * but weak read; "DT14 .C653 2019" is a shelf address. Callers use this to
+   * decide whether a sticker read is good enough to beat a lookup provider.
+   */
+  complete: boolean;
+};
+
+// Pull an LC call number out of arbitrary text (a spine sticker, usually).
+export function parseLcc(text: string | null | undefined): ParsedLcc | null {
   if (!text) return null;
-  const match = text.match(LCC_REGEX);
-  return match ? cleanLcc(match[0].trim()) : null;
+  const m = text.match(LCC_REGEX);
+  if (!m) return null;
+
+  const [, letters, number, cutterBlob, year] = m;
+  const cutters = (cutterBlob || "")
+    .split(/\s+|(?=\.)/)
+    .map((c) => c.replace(/^\.+/, "").trim())
+    .filter(Boolean);
+
+  let value = `${letters}${number}`;
+  if (cutters.length > 0) value += ` .${cutters[0]}`;
+  if (cutters.length > 1) value += ` ${cutters.slice(1).join(" ")}`;
+  if (year) value += ` ${year}`;
+
+  return { value, complete: cutters.length > 0 };
+}
+
+export function extractLcc(text: string | null): string | null {
+  return parseLcc(text)?.value ?? null;
 }
 
 // Open Library returns LCC values in their padded MARC display form:
@@ -61,7 +114,7 @@ export function cleanLcc(raw: string | null | undefined): string | null {
 export function stripSpineSticker(s: string): string {
   if (!s) return s;
   let out = s;
-  out = out.replace(new RegExp(LCC_REGEX, "g"), " ");
+  out = out.replace(LCC_STRIP_REGEX, " ");
   out = out.replace(DDC_REGEX, " ");
   out = out.replace(TRAILING_SHELF_REGEX, "");
   out = out.replace(LEADING_SHELF_REGEX, "");
