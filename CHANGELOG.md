@@ -3,25 +3,6 @@
 Carnegie — a personal-library cataloger. Photograph shelves, scan
 barcodes, type ISBNs; export LibraryThing-compatible CSV.
 
-## Unreleased
-
-### Tools
-
-- `tools/compare-batches.mjs` — compare two batches for overlap and
-  optionally merge them into one worksheet, in shelf order, with rows
-  appearing in both tinted and a Decision dropdown.
-
-  Matches on ISBN, then exact call number, then call number ignoring a
-  trailing year (same work, different printing), then normalised title plus
-  author surname — reporting which tier caught each pair so the weak ones
-  can be judged rather than trusted.
-
-  The tiers exist because the in-app `/duplicates` page matches on ISBN
-  alone, and only 15–33% of the reference collection has one; ~100% have a
-  call number. Comparing "Ref Pulls" against "Second Round Cuts" found 41
-  books in both, of which just 10 had ISBNs — the other 31 were invisible to
-  the existing check.
-
 ## 1.3.0 — 2026-08-11
 
 ### Added
